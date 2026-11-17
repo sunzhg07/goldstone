@@ -1,0 +1,205 @@
+# Builds Goldstone for Linux, macOS and Windows and publishes the packages
+# as a GitHub Release when a version tag (v0.1, v0.2, …) is pushed.
+# "Run workflow" on the Actions page builds the same packages without
+# publishing them (they appear as downloadable artifacts of the run).
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    name: Linux (tar.gz, AppImage, deb)
+    runs-on: ubuntu-22.04 # oldest supported glibc, so the binaries run widely
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
+            libvulkan-dev imagemagick desktop-file-utils file
+
+      - name: Build
+        run: cargo build --release --locked -p goldstone
+
+      - name: Test
+        run: cargo test --release --locked --workspace
+
+      - name: Icon (drawn by Goldstone itself)
+        run: |
+          target/release/goldstone render packaging/icon.gold -o icon-big.png --dpi 1160
+          convert icon-big.png -resize '256x256!' goldstone.png
+          desktop-file-validate packaging/goldstone.desktop
+
+      - name: Package
+        run: |
+          V="${GITHUB_REF_NAME}"
+          mkdir -p dist
+
+          # Plain archive
+          mkdir -p "goldstone-$V-linux-x86_64"
+          cp target/release/goldstone README.md LICENSE packaging/goldstone.desktop goldstone.png \
+            "goldstone-$V-linux-x86_64/"
+          tar czf "dist/goldstone-$V-linux-x86_64.tar.gz" "goldstone-$V-linux-x86_64"
+
+          # Debian package
+          DV="${V#v}"
+          [[ "$DV" =~ ^[0-9] ]] || DV="0.0.0+$DV"
+          mkdir -p deb/DEBIAN deb/usr/bin deb/usr/share/applications \
+            deb/usr/share/icons/hicolor/256x256/apps deb/usr/share/doc/goldstone
+          cp target/release/goldstone deb/usr/bin/
+          cp packaging/goldstone.desktop deb/usr/share/applications/
+          cp goldstone.png deb/usr/share/icons/hicolor/256x256/apps/
+          cp LICENSE deb/usr/share/doc/goldstone/copyright
+          cat > deb/DEBIAN/control <<EOF
+          Package: goldstone
+          Version: $DV
+          Section: science
+          Priority: optional
+          Architecture: amd64
+          Depends: libc6 (>= 2.35), libxkbcommon0, libwayland-client0
+          Maintainer: Goldstone developers <sunzhg07@users.noreply.github.com>
+          Homepage: https://github.com/sunzhg07/goldstone
+          Description: Draw many-body (coupled-cluster, IMSRG, MBPT) diagrams
+           An Inkscape-style editor and command-line renderer for Goldstone and
+           Hugenholtz diagrams, with diagrams generated from LaTeX equations.
+          EOF
+          sed -i 's/^          //' deb/DEBIAN/control
+          dpkg-deb --build --root-owner-group deb "dist/goldstone_${DV}_amd64.deb"
+
+          # AppImage
+          wget -q -O linuxdeploy \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./linuxdeploy --appdir AppDir -e target/release/goldstone \
+            -d packaging/goldstone.desktop -i goldstone.png --output appimage
+          mv Goldstone*.AppImage "dist/goldstone-$V-x86_64.AppImage"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  macos:
+    name: macOS (dmg, universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build (Apple Silicon and Intel)
+        run: |
+          cargo build --release --locked -p goldstone --target aarch64-apple-darwin
+          cargo build --release --locked -p goldstone --target x86_64-apple-darwin
+          lipo -create -output goldstone \
+            target/aarch64-apple-darwin/release/goldstone \
+            target/x86_64-apple-darwin/release/goldstone
+          lipo -info goldstone
+
+      - name: Icon (drawn by Goldstone itself)
+        run: |
+          ./goldstone render packaging/icon.gold -o icon-big.png --dpi 1160
+          mkdir goldstone.iconset
+          for s in 16 32 128 256 512; do
+            sips -z $s $s icon-big.png --out goldstone.iconset/icon_${s}x${s}.png >/dev/null
+            d=$((s * 2))
+            sips -z $d $d icon-big.png --out goldstone.iconset/icon_${s}x${s}@2x.png >/dev/null
+          done
+          iconutil -c icns goldstone.iconset -o goldstone.icns
+
+      - name: App bundle and disk image
+        run: |
+          V="${GITHUB_REF_NAME}"
+          mkdir -p dist Goldstone.app/Contents/MacOS Goldstone.app/Contents/Resources
+          cp goldstone Goldstone.app/Contents/MacOS/
+          cp goldstone.icns Goldstone.app/Contents/Resources/
+          sed "s/@VERSION@/${V#v}/g" packaging/Info.plist > Goldstone.app/Contents/Info.plist
+          plutil -lint Goldstone.app/Contents/Info.plist
+          # Ad-hoc signature (no Apple Developer certificate): the app runs
+          # after "right click > Open" the first time.
+          codesign --force --deep --sign - Goldstone.app
+          mkdir dmg
+          cp -R Goldstone.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname Goldstone -srcfolder dmg -ov -format UDZO \
+            "dist/goldstone-$V-macos-universal.dmg"
+          # The command-line tool on its own
+          tar czf "dist/goldstone-$V-macos-universal.tar.gz" goldstone README.md LICENSE
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  windows:
+    name: Windows (zip)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked -p goldstone
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $V = $env:GITHUB_REF_NAME
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $dir = "goldstone-$V-windows-x86_64"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item target/release/goldstone.exe, README.md, LICENSE $dir
+          Compress-Archive -Path $dir -DestinationPath "dist/$dir.zip"
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  release:
+    name: Publish release
+    needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Goldstone ${{ github.ref_name }}
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            Downloads:
+
+            - **macOS** (Apple Silicon and Intel): `.dmg` — drag Goldstone to Applications. It is not
+              signed by Apple: the first time, right-click the app and choose *Open*.
+              The command-line tool is `Goldstone.app/Contents/MacOS/goldstone`, or use the `.tar.gz`.
+            - **Windows**: `.zip` — unpack and run `goldstone.exe`.
+            - **Linux**: `.AppImage` (any distribution: `chmod +x` and run), `.deb` (Debian/Ubuntu:
+              `sudo apt install ./goldstone_*.deb`), or `.tar.gz`.
+
+            No LaTeX installation is needed. See docs/MANUAL.md for usage.

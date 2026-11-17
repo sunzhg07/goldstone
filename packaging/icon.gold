@@ -1,0 +1,87 @@
+# Goldstone application icon: the second-order Goldstone diagram, white on
+# blue, on a 64 x 64 pt square. Rendered to PNG/ICNS by the release workflow
+# (.github/workflows/release.yml) with Goldstone itself.
+format = 1
+
+[canvas]
+margin = 0
+
+[style.line]
+color = "white"
+width = 2.6
+arrow = "forward"
+arrow_length = 8
+arrow_width = 7
+
+[style.v]
+kind = "dot"
+size = 6
+color = "white"
+fill = "white"
+
+[[shape]]
+kind = "box"
+at = [32, 32]
+size = [64, 64]
+fill = "#1f4e8c"
+width = 0
+
+[[vertex]]
+id = "a"
+at = [17, 13]
+class = "v"
+
+[[vertex]]
+id = "b"
+at = [47, 13]
+class = "v"
+
+[[vertex]]
+id = "c"
+at = [17, 51]
+class = "v"
+
+[[vertex]]
+id = "d"
+at = [47, 51]
+class = "v"
+
+[[edge]]
+from = "a"
+to = "c"
+class = "line"
+bend = 42
+
+[[edge]]
+from = "c"
+to = "a"
+class = "line"
+bend = 42
+
+[[edge]]
+from = "b"
+to = "d"
+class = "line"
+bend = 42
+
+[[edge]]
+from = "d"
+to = "b"
+class = "line"
+bend = 42
+
+[[edge]]
+from = "a"
+to = "b"
+stroke = "dashed"
+color = "white"
+width = 2
+dash = [3.5, 2.5]
+
+[[edge]]
+from = "c"
+to = "d"
+stroke = "dashed"
+color = "white"
+width = 2
+dash = [3.5, 2.5]

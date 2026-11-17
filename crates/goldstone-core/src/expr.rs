@@ -584,6 +584,9 @@ fn resolve_occupations(out: Vec<(Prod, usize)>) -> Vec<Term> {
                 *acc.entry(assign).or_insert(0.0) += pr.sign;
             }
         }
+        // Positive terms first: (n_a - n_b) reads n_a \bar n_b - \bar n_a n_b.
+        let mut acc: Vec<(Vec<bool>, f64)> = acc.into_iter().collect();
+        acc.sort_by(|a, b| b.1.total_cmp(&a.1));
         for (assign, coef) in acc {
             if coef.abs() < 1e-9 {
                 continue;

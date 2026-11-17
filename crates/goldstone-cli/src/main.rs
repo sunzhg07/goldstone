@@ -55,6 +55,9 @@ enum Command {
         /// Resolution for PNG output.
         #[arg(long, default_value_t = 300.0)]
         dpi: f32,
+        /// Background color (e.g. white); default transparent, or the file's own.
+        #[arg(long)]
+        background: Option<String>,
     },
     /// Validate diagrams, including typesetting of all labels.
     Check {
@@ -101,7 +104,17 @@ enum Command {
         /// Resolution for PNG output.
         #[arg(long, default_value_t = 300.0)]
         dpi: f32,
+        /// Background color (e.g. white); default transparent.
+        #[arg(long)]
+        background: Option<String>,
     },
+}
+
+fn parse_background(s: Option<&str>) -> Result<Option<goldstone_core::color::Color>, Vec<String>> {
+    s.map(|c| {
+        goldstone_core::color::Color::parse(c).map_err(|e| vec![format!("--background: {e}")])
+    })
+    .transpose()
 }
 
 fn parse_format(s: &str) -> Result<Format, String> {
@@ -176,7 +189,9 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
             format,
             out_dir,
             dpi,
+            background,
         } => {
+            let bg = parse_background(background.as_deref())?;
             if output.is_some() && inputs.len() > 1 {
                 return Err(vec![
                     "--output works with a single input; use --out-dir for several".into(),
@@ -192,7 +207,7 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
                 .unwrap_or(Format::Pdf);
             let mut labels = Labels::new();
             for input in &inputs {
-                let (src, sc) = match load(input) {
+                let (src, mut sc) = match load(input) {
                     Ok(x) => x,
                     Err(e) => {
                         errors.push(e);
@@ -219,6 +234,9 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
                     source_name: name.as_deref(),
                     dpi,
                 };
+                if bg.is_some() {
+                    sc.background = bg;
+                }
                 match export(&sc, format, &mut labels, &opts) {
                     Ok(bytes) => {
                         if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty())
@@ -253,7 +271,9 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
             expression,
             output,
             dpi,
+            background,
         } => {
+            let bg = parse_background(background.as_deref())?;
             let drawn = goldstone_core::expr::from_latex(&expression).map_err(|e| vec![e])?;
             for w in &drawn.warnings {
                 eprintln!("warning: {w}");
@@ -275,7 +295,10 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
                         .extension()
                         .and_then(|e| Format::from_extension(&e.to_string_lossy()))
                         .ok_or_else(|| vec![format!("{}: unknown output format", out.display())])?;
-                    let sc = scene::build(&doc).map_err(|e| vec![e.to_string()])?;
+                    let mut sc = scene::build(&doc).map_err(|e| vec![e.to_string()])?;
+                    if bg.is_some() {
+                        sc.background = bg;
+                    }
                     let opts = Options {
                         source: Some(&text),
                         source_name: None,

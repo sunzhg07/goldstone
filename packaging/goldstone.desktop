@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Goldstone
+GenericName=Diagram editor
+Comment=Draw many-body (coupled-cluster, IMSRG, MBPT) diagrams
+Exec=goldstone %f
+Icon=goldstone
+Terminal=false
+Categories=Science;Physics;Graphics;
+Keywords=Feynman;Goldstone;diagram;coupled cluster;IMSRG;MBPT;
