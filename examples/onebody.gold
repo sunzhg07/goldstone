@@ -1,0 +1,93 @@
+# One-body operator insertions: ---X and a cross directly on a line.
+format = 1
+
+[style.particle]
+arrow = "forward"
+
+[style.hole]
+arrow = "backward"
+
+[[vertex]]
+id = "bottom"
+at = [0, 0]
+
+[[vertex]]
+id = "v"
+at = [0, 40]
+kind = "dot"
+
+[[vertex]]
+id = "x"
+at = [40, 40]
+kind = "cross"
+label = "$f$"
+
+[[vertex]]
+id = "top"
+at = [0, 80]
+
+[[edge]]
+from = "bottom"
+to = "v"
+class = "hole"
+label = "$i$"
+
+[[edge]]
+from = "v"
+to = "top"
+class = "particle"
+label = "$a$"
+
+[[edge]]
+from = "v"
+to = "x"
+stroke = "dashed"
+
+# A cross placed directly on a line, and a circled cross.
+[[vertex]]
+id = "b2"
+at = [90, 0]
+
+[[vertex]]
+id = "x2"
+at = [90, 40]
+kind = "cross"
+
+[[vertex]]
+id = "t2"
+at = [90, 80]
+
+[[edge]]
+from = "b2"
+to = "x2"
+class = "particle"
+
+[[edge]]
+from = "x2"
+to = "t2"
+class = "particle"
+
+[[vertex]]
+id = "b3"
+at = [140, 0]
+
+[[vertex]]
+id = "x3"
+at = [140, 40]
+kind = "ocross"
+label = "$U$"
+label_anchor = "west"
+
+[[vertex]]
+id = "t3"
+at = [140, 80]
+
+[[edge]]
+from = "b3"
+to = "x3"
+class = "hole"
+
+[[edge]]
+from = "x3"
+to = "t3"
+class = "hole"

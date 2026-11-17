@@ -1,0 +1,171 @@
+# Every stroke, vertex kind, shape and an axis, for visual checks.
+format = 1
+
+[[vertex]]
+id = "l1"
+at = [0, 0]
+[[vertex]]
+id = "r1"
+at = [80, 0]
+[[edge]]
+from = "l1"
+to = "r1"
+label = "plain"
+arrow = "forward"
+
+[[vertex]]
+id = "l2"
+at = [0, -20]
+[[vertex]]
+id = "r2"
+at = [80, -20]
+[[edge]]
+from = "l2"
+to = "r2"
+stroke = "dashed"
+label = "dashed"
+
+[[vertex]]
+id = "l3"
+at = [0, -40]
+[[vertex]]
+id = "r3"
+at = [80, -40]
+[[edge]]
+from = "l3"
+to = "r3"
+stroke = "dotted"
+label = "dotted"
+
+[[vertex]]
+id = "l4"
+at = [0, -60]
+[[vertex]]
+id = "r4"
+at = [80, -60]
+[[edge]]
+from = "l4"
+to = "r4"
+stroke = "wavy"
+label = "wavy"
+
+[[vertex]]
+id = "l5"
+at = [0, -85]
+[[vertex]]
+id = "r5"
+at = [80, -85]
+[[edge]]
+from = "l5"
+to = "r5"
+stroke = "curly"
+label = "curly"
+
+[[vertex]]
+id = "l6"
+at = [0, -110]
+[[vertex]]
+id = "r6"
+at = [80, -110]
+[[edge]]
+from = "l6"
+to = "r6"
+stroke = "zigzag"
+label = "zigzag"
+
+[[vertex]]
+id = "l7"
+at = [0, -130]
+[[vertex]]
+id = "r7"
+at = [80, -130]
+[[edge]]
+from = "l7"
+to = "r7"
+double = true
+arrow = "backward"
+label = "double"
+
+# Curved geometry
+[[vertex]]
+id = "p"
+at = [120, -60]
+kind = "dot"
+[[vertex]]
+id = "q"
+at = [180, -60]
+kind = "dot"
+[[edge]]
+from = "p"
+to = "q"
+bend = 60
+stroke = "wavy"
+[[edge]]
+from = "p"
+to = "q"
+bend = -60
+arrow = "forward"
+[[edge]]
+from = "q"
+to = "q"
+loop = { radius = 12, angle = 0 }
+stroke = "curly"
+[[edge]]
+from = "p"
+to = "p"
+loop = { radius = 10, angle = 180 }
+arrow = "forward"
+[[vertex]]
+id = "s1"
+at = [120, -120]
+[[vertex]]
+id = "s2"
+at = [180, -120]
+[[edge]]
+from = "s1"
+to = "s2"
+controls = [[140, -90], [160, -150]]
+stroke = "dashed"
+arrow = "forward"
+
+# Vertex kinds
+[[vertex]]
+id = "k1"
+at = [120, 0]
+kind = "dot"
+label = "dot"
+[[vertex]]
+id = "k2"
+at = [140, 0]
+kind = "cross"
+label = "cross"
+[[vertex]]
+id = "k3"
+at = [160, 0]
+kind = "ocross"
+[[vertex]]
+id = "k4"
+at = [180, 0]
+kind = "circle"
+[[vertex]]
+id = "k5"
+at = [200, 0]
+kind = "square"
+color = "blue"
+
+[[shape]]
+kind = "ellipse"
+at = [230, -60]
+size = [20, 30]
+fill = "lightgray"
+[[shape]]
+kind = "box"
+at = [230, -110]
+size = [20, 12]
+rotation = 20
+color = "red"
+
+[[axes]]
+origin = [-10, -175]
+x = { length = 110, label = "$s$", ticks = true, tick_spacing = 20, tick_labels = ["1", "2", "3", "4", "5"] }
+y = { length = 30, label = "$E(s)$" }

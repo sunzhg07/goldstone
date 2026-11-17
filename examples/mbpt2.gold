@@ -1,0 +1,83 @@
+# Second-order MBPT energy correction (Goldstone diagram).
+format = 1
+
+[canvas]
+grid = 10
+margin = 4
+
+[style.particle]
+arrow = "forward"
+
+[style.hole]
+arrow = "backward"
+
+[style.interaction]
+stroke = "dashed"
+
+[style.v]
+kind = "dot"
+
+[[vertex]]
+id = "a"
+at = [0, 0]
+class = "v"
+
+[[vertex]]
+id = "b"
+at = [70, 0]
+class = "v"
+
+[[vertex]]
+id = "c"
+at = [0, 60]
+class = "v"
+
+[[vertex]]
+id = "d"
+at = [70, 60]
+class = "v"
+
+[[edge]]
+from = "a"
+to = "b"
+class = "interaction"
+
+[[edge]]
+from = "c"
+to = "d"
+class = "interaction"
+
+[[edge]]
+from = "a"
+to = "c"
+class = "particle"
+bend = 40
+label = "$a$"
+
+[[edge]]
+from = "a"
+to = "c"
+class = "hole"
+bend = -40
+label = "$i$"
+label_side = "right"
+
+[[edge]]
+from = "b"
+to = "d"
+class = "particle"
+bend = 40
+label = "$b$"
+
+[[edge]]
+from = "b"
+to = "d"
+class = "hole"
+bend = -40
+label = "$j$"
+label_side = "right"
+
+[[text]]
+at = [-35, 30]
+content = "$E^{(2)} =$"
+anchor = "east"

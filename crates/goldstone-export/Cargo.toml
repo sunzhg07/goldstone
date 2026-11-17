@@ -1,0 +1,16 @@
+[package]
+name = "goldstone-export"
+description = "SVG, PDF, PNG and TikZ export for Goldstone diagrams"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+goldstone-core = { version = "0.1.0", path = "../goldstone-core" }
+mitex = "0.2.4"
+resvg = "0.45"
+svg2pdf = "0.13.0"
+typst = "0.15.1"
+typst-assets = { version = "0.15.1", features = ["fonts"] }
+typst-layout = "0.15.1"
+typst-svg = "0.15.1"

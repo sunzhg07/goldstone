@@ -1,0 +1,11 @@
+[package]
+name = "goldstone-core"
+description = "Document model, validation and geometry for Goldstone many-body diagrams"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kurbo = "0.13"
+serde = { version = "1", features = ["derive"] }
+toml = "1"

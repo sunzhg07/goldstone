@@ -1,0 +1,15 @@
+[package]
+name = "goldstone"
+description = "Draw many-body (coupled-cluster, IMSRG, MBPT) diagrams"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "goldstone"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+goldstone-core = { path = "../goldstone-core" }
+goldstone-export = { path = "../goldstone-export" }
