@@ -1,0 +1,10 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Select tool: arrow pointer
+
+[[shape]]
+kind = "polygon"
+points = [[6, 21], [6, 4.5], [10, 8.5], [13, 2.5], [15.6, 3.7], [12.7, 9.6], [17.8, 10]]
+fill = "black"
+width = 1

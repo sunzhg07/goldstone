@@ -2,6 +2,7 @@
 
 pub mod app;
 mod doc_ops;
+pub mod icons;
 pub mod keys;
 mod panels;
 mod view;

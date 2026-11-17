@@ -363,6 +363,9 @@ pub enum ShapeKind {
     Box,
     Ellipse,
     Polygon,
+    /// Arbitrary outline given as SVG path data (`d`), e.g. the result of a
+    /// boolean operation.
+    Path,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -380,6 +383,10 @@ pub struct Shape {
     /// Corners (polygon).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub points: Option<Vec<Point>>,
+    /// Outline as SVG path data in document coordinates (pt, y up), for
+    /// `kind = "path"`: `M x y L x y C x1 y1 x2 y2 x y … Z`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rotation: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

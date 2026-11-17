@@ -1,25 +1,112 @@
 //! The key-binding table. The editor dispatches keyboard input from this
-//! table, and the manual's shortcut section is generated from it, so the two
-//! cannot disagree.
+//! table, and both the in-app shortcut list and the manual are generated
+//! from it, so they cannot disagree.
+//!
+//! Bindings are written once with `CMD` for the platform's command key:
+//! Cmd on macOS, Ctrl on Linux and Windows (egui's `Modifiers::COMMAND`).
+//! Labels are formatted for the platform the editor runs on (`⇧⌘Z` on macOS,
+//! `Ctrl+Shift+Z` elsewhere); a few bindings exist on one platform only,
+//! following its conventions.
 
 use egui::{Key, Modifiers};
+
+/// Operating-system family, which decides key conventions and labels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Os {
+    Mac,
+    /// Linux, Windows and the BSDs.
+    Other,
+}
+
+impl Os {
+    /// The platform this binary was built for.
+    pub const fn current() -> Os {
+        if cfg!(target_os = "macos") {
+            Os::Mac
+        } else {
+            Os::Other
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Os::Mac => "macOS",
+            Os::Other => "Linux / Windows",
+        }
+    }
+
+    /// The command modifier as written in labels.
+    pub fn cmd(self) -> &'static str {
+        match self {
+            Os::Mac => "⌘",
+            Os::Other => "Ctrl",
+        }
+    }
+
+    pub fn alt(self) -> &'static str {
+        match self {
+            Os::Mac => "⌥",
+            Os::Other => "Alt",
+        }
+    }
+
+    pub fn shift(self) -> &'static str {
+        match self {
+            Os::Mac => "⇧",
+            Os::Other => "Shift",
+        }
+    }
+
+    /// Replaces `{cmd}`, `{alt}` and `{shift}` in a description.
+    pub fn fill(self, s: &str) -> String {
+        let join = |m: &str| match self {
+            Os::Mac => m.to_string(),
+            Os::Other => format!("{m}+"),
+        };
+        s.replace("{cmd}", &join(self.cmd()))
+            .replace("{alt}", &join(self.alt()))
+            .replace("{shift}", &join(self.shift()))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     ToolSelect,
     ToolEdit,
     ToolEdge,
+    ToolArc,
     ToolVertex,
     ToolCross,
     ToolText,
+    ToolRect,
+    ToolEllipse,
     Undo,
     Redo,
+    Copy,
+    Cut,
+    Paste,
+    PasteInPlace,
+    Duplicate,
     Delete,
     SelectAll,
     Deselect,
+    SelectNext,
+    SelectPrev,
+    SelectSame(Same),
+    Group,
+    Ungroup,
     FlipH,
     FlipV,
-    Nudge { dx: i8, dy: i8, step: Step },
+    /// Rotate by this many degrees (counterclockwise).
+    Rotate(i16),
+    Nudge {
+        dx: i8,
+        dy: i8,
+        step: Step,
+    },
+    Align(AlignOp),
+    Bool(goldstone_core::shapes::BoolOp),
+    ObjectToPath,
     ZoomIn,
     ZoomOut,
     Zoom1,
@@ -27,15 +114,43 @@ pub enum Action {
     ZoomDrawing,
     ZoomPage,
     ToggleGrid,
+    ToggleRulers,
+    ToggleIds,
     New,
     Open,
     Save,
     SaveAs,
     Export,
+    Quit,
     ShowFillStroke,
     ShowObjects,
+    ShowAlign,
     ShowSource,
+    FromLatex,
     Shortcuts,
+}
+
+/// Criteria for Edit ▸ Select Same.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Same {
+    FillAndStroke,
+    StrokeColor,
+    StrokeStyle,
+    Class,
+    Kind,
+}
+
+/// Align & Distribute operations (relative to the selection's bounding box).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlignOp {
+    Left,
+    CenterX,
+    Right,
+    Top,
+    CenterY,
+    Bottom,
+    DistributeX,
+    DistributeY,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,23 +160,50 @@ pub enum Step {
     Pixel,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Trigger {
     Key(Modifiers, Key),
     /// A typed character, for keys egui has no `Key` for (e.g. `#`).
     Text(&'static str),
+    /// The platform's copy / cut / paste shortcut, which egui delivers as
+    /// events rather than key presses.
+    Copy,
+    Cut,
+    Paste,
+}
+
+/// Which platforms a binding exists on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Only {
+    All,
+    Mac,
+    NotMac,
+}
+
+impl Only {
+    pub fn includes(self, os: Os) -> bool {
+        match self {
+            Only::All => true,
+            Only::Mac => os == Os::Mac,
+            Only::NotMac => os != Os::Mac,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Binding {
     pub trigger: Trigger,
     pub action: Action,
-    /// How the keys are written in the manual (Ctrl means Cmd on macOS).
-    pub keys: &'static str,
     pub desc: &'static str,
     pub group: &'static str,
     /// Whether Inkscape uses the same binding for the same action.
     pub inkscape: bool,
+    pub only: Only,
+    /// Shown in the shortcut list (siblings such as the four arrow keys
+    /// are listed once).
+    pub listed: bool,
+    /// Replaces the key name in labels (e.g. "Arrow" for the arrow keys).
+    pub key_label: Option<&'static str>,
 }
 
 const NONE: Modifiers = Modifiers::NONE;
@@ -72,368 +214,518 @@ const CMD_SHIFT: Modifiers = Modifiers {
     shift: true,
     ..Modifiers::COMMAND
 };
+const CMD_ALT: Modifiers = Modifiers {
+    alt: true,
+    ..Modifiers::COMMAND
+};
 
 const fn b(
     mods: Modifiers,
     key: Key,
     action: Action,
-    keys: &'static str,
     desc: &'static str,
     group: &'static str,
 ) -> Binding {
     Binding {
         trigger: Trigger::Key(mods, key),
         action,
-        keys,
         desc,
         group,
         inkscape: true,
+        only: Only::All,
+        listed: true,
+        key_label: None,
     }
 }
 
+const fn special(
+    trigger: Trigger,
+    action: Action,
+    desc: &'static str,
+    group: &'static str,
+) -> Binding {
+    Binding {
+        trigger,
+        action,
+        desc,
+        group,
+        inkscape: true,
+        only: Only::All,
+        listed: true,
+        key_label: None,
+    }
+}
+
+/// Not an Inkscape binding.
 const fn own(mut x: Binding) -> Binding {
     x.inkscape = false;
     x
 }
 
-const fn nudge(dx: i8, dy: i8, step: Step) -> Action {
-    Action::Nudge { dx, dy, step }
+/// Not listed separately (a sibling of a listed binding).
+const fn quiet(mut x: Binding) -> Binding {
+    x.listed = false;
+    x
 }
 
-/// Keyboard bindings. More specific modifier combinations come first,
-/// because egui ignores extra Shift/Alt when matching.
+const fn only(mut x: Binding, o: Only) -> Binding {
+    x.only = o;
+    x
+}
+
+const fn label(mut x: Binding, l: &'static str) -> Binding {
+    x.key_label = Some(l);
+    x
+}
+
+/// The four arrow keys with `mods`, listed once as "Arrow".
+const fn arrows(mods: Modifiers, step: Step, desc: &'static str) -> [Binding; 4] {
+    [
+        label(
+            b(
+                mods,
+                Key::ArrowLeft,
+                Action::Nudge {
+                    dx: -1,
+                    dy: 0,
+                    step,
+                },
+                desc,
+                "Transform",
+            ),
+            "Arrow",
+        ),
+        quiet(b(
+            mods,
+            Key::ArrowRight,
+            Action::Nudge { dx: 1, dy: 0, step },
+            desc,
+            "Transform",
+        )),
+        quiet(b(
+            mods,
+            Key::ArrowUp,
+            Action::Nudge { dx: 0, dy: 1, step },
+            desc,
+            "Transform",
+        )),
+        quiet(b(
+            mods,
+            Key::ArrowDown,
+            Action::Nudge {
+                dx: 0,
+                dy: -1,
+                step,
+            },
+            desc,
+            "Transform",
+        )),
+    ]
+}
+
+const TOOLS: &str = "Tools";
+const EDIT: &str = "Editing";
+const OBJ: &str = "Objects and paths";
+const XF: &str = "Transform";
+const VIEW: &str = "View";
+const FILE: &str = "Dialogs and file";
+
+const LARGE: [Binding; 4] = arrows(SHIFT, Step::Large, "Move selection by 20 pt");
+const PIXEL: [Binding; 4] = arrows(ALT, Step::Pixel, "Move selection by one screen pixel");
+const NORMAL: [Binding; 4] = arrows(NONE, Step::Normal, "Move selection by 2 pt");
+
+/// Keyboard bindings. More specific modifier combinations come first.
 pub const BINDINGS: &[Binding] = &[
     // Tools
-    b(
-        NONE,
-        Key::S,
-        Action::ToolSelect,
-        "S",
-        "Select tool",
-        "Tools",
-    ),
-    b(
-        NONE,
-        Key::F1,
-        Action::ToolSelect,
-        "F1",
-        "Select tool",
-        "Tools",
-    ),
+    b(NONE, Key::S, Action::ToolSelect, "Select tool", TOOLS),
+    b(NONE, Key::F1, Action::ToolSelect, "Select tool", TOOLS),
     b(
         NONE,
         Key::N,
         Action::ToolEdit,
-        "N",
         "Edit tool (bend, control points, loop size, arrow position)",
-        "Tools",
+        TOOLS,
     ),
     b(
         NONE,
         Key::B,
         Action::ToolEdge,
-        "B",
-        "Edge tool (draw lines between vertices)",
-        "Tools",
+        "Line tool (straight lines between vertices)",
+        TOOLS,
     ),
     own(b(
         NONE,
-        Key::P,
-        Action::ToolVertex,
-        "P",
-        "Vertex tool",
-        "Tools",
+        Key::A,
+        Action::ToolArc,
+        "Arc tool (click start, click end, click to set the bulge; same vertex twice: loop)",
+        TOOLS,
     )),
+    own(b(NONE, Key::P, Action::ToolVertex, "Vertex tool", TOOLS)),
     own(b(
         NONE,
         Key::X,
         Action::ToolCross,
-        "X",
         "Cross tool (one-body operator ---X)",
-        "Tools",
+        TOOLS,
     )),
     b(
         NONE,
         Key::T,
         Action::ToolText,
-        "T",
         "Text tool (LaTeX labels)",
-        "Tools",
+        TOOLS,
     ),
+    b(NONE, Key::R, Action::ToolRect, "Rectangle tool", TOOLS),
+    b(NONE, Key::E, Action::ToolEllipse, "Ellipse tool", TOOLS),
     // Editing
-    b(
-        CMD_SHIFT,
-        Key::Z,
-        Action::Redo,
-        "Ctrl+Shift+Z",
-        "Redo",
-        "Editing",
+    b(CMD_SHIFT, Key::Z, Action::Redo, "Redo", EDIT),
+    only(b(CMD, Key::Y, Action::Redo, "Redo", EDIT), Only::NotMac),
+    b(CMD, Key::Z, Action::Undo, "Undo", EDIT),
+    special(
+        Trigger::Copy,
+        Action::Copy,
+        "Copy (also puts the objects' .gold text on the clipboard)",
+        EDIT,
     ),
-    b(CMD, Key::Y, Action::Redo, "Ctrl+Y", "Redo", "Editing"),
-    b(CMD, Key::Z, Action::Undo, "Ctrl+Z", "Undo", "Editing"),
+    special(Trigger::Cut, Action::Cut, "Cut", EDIT),
+    special(
+        Trigger::Paste,
+        Action::Paste,
+        "Paste (Goldstone objects or .gold text) next to the original",
+        EDIT,
+    ),
+    b(
+        CMD_ALT,
+        Key::V,
+        Action::PasteInPlace,
+        "Paste in place",
+        EDIT,
+    ),
+    b(CMD, Key::D, Action::Duplicate, "Duplicate", EDIT),
     b(
         NONE,
         Key::Delete,
         Action::Delete,
-        "Delete",
         "Delete selection (and lines attached to deleted vertices)",
-        "Editing",
+        EDIT,
     ),
     b(
         NONE,
         Key::Backspace,
         Action::Delete,
-        "Backspace",
         "Delete selection",
-        "Editing",
+        EDIT,
     ),
-    b(
-        CMD,
-        Key::A,
-        Action::SelectAll,
-        "Ctrl+A",
-        "Select all",
-        "Editing",
-    ),
+    b(CMD, Key::A, Action::SelectAll, "Select all", EDIT),
     b(
         NONE,
         Key::Escape,
         Action::Deselect,
-        "Esc",
         "Deselect, or cancel the line being drawn",
-        "Editing",
+        EDIT,
     ),
+    b(
+        SHIFT,
+        Key::Tab,
+        Action::SelectPrev,
+        "Select previous object",
+        EDIT,
+    ),
+    b(
+        NONE,
+        Key::Tab,
+        Action::SelectNext,
+        "Select next object",
+        EDIT,
+    ),
+    // Objects and paths
+    b(CMD_SHIFT, Key::G, Action::Ungroup, "Ungroup", OBJ),
+    b(CMD, Key::G, Action::Group, "Group", OBJ),
+    b(
+        CMD,
+        Key::Plus,
+        Action::Bool(goldstone_core::shapes::BoolOp::Union),
+        "Union of shapes",
+        OBJ,
+    ),
+    quiet(b(
+        CMD,
+        Key::Equals,
+        Action::Bool(goldstone_core::shapes::BoolOp::Union),
+        "Union of shapes",
+        OBJ,
+    )),
+    b(
+        CMD,
+        Key::Minus,
+        Action::Bool(goldstone_core::shapes::BoolOp::Difference),
+        "Difference (bottom shape minus the others)",
+        OBJ,
+    ),
+    b(
+        CMD_SHIFT,
+        Key::Num8,
+        Action::Bool(goldstone_core::shapes::BoolOp::Intersection),
+        "Intersection of shapes (Inkscape's Ctrl+*)",
+        OBJ,
+    ),
+    b(
+        CMD_SHIFT,
+        Key::Num6,
+        Action::Bool(goldstone_core::shapes::BoolOp::Exclusion),
+        "Exclusion of shapes (Inkscape's Ctrl+^)",
+        OBJ,
+    ),
+    b(
+        CMD_SHIFT,
+        Key::C,
+        Action::ObjectToPath,
+        "Object to path",
+        OBJ,
+    ),
+    // Transform
     b(
         NONE,
         Key::H,
         Action::FlipH,
-        "H",
         "Flip selection horizontally",
-        "Editing",
+        XF,
+    ),
+    b(NONE, Key::V, Action::FlipV, "Flip selection vertically", XF),
+    b(
+        CMD,
+        Key::OpenBracket,
+        Action::Rotate(90),
+        "Rotate selection 90° counterclockwise",
+        XF,
+    ),
+    b(
+        CMD,
+        Key::CloseBracket,
+        Action::Rotate(-90),
+        "Rotate selection 90° clockwise",
+        XF,
     ),
     b(
         NONE,
-        Key::V,
-        Action::FlipV,
-        "V",
-        "Flip selection vertically",
-        "Editing",
-    ),
-    b(
-        SHIFT,
-        Key::ArrowLeft,
-        nudge(-1, 0, Step::Large),
-        "Shift+Arrow",
-        "Move selection by 20 pt",
-        "Editing",
-    ),
-    b(
-        SHIFT,
-        Key::ArrowRight,
-        nudge(1, 0, Step::Large),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        SHIFT,
-        Key::ArrowUp,
-        nudge(0, 1, Step::Large),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        SHIFT,
-        Key::ArrowDown,
-        nudge(0, -1, Step::Large),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        ALT,
-        Key::ArrowLeft,
-        nudge(-1, 0, Step::Pixel),
-        "Alt+Arrow",
-        "Move selection by one screen pixel",
-        "Editing",
-    ),
-    b(
-        ALT,
-        Key::ArrowRight,
-        nudge(1, 0, Step::Pixel),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        ALT,
-        Key::ArrowUp,
-        nudge(0, 1, Step::Pixel),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        ALT,
-        Key::ArrowDown,
-        nudge(0, -1, Step::Pixel),
-        "",
-        "",
-        "Editing",
+        Key::OpenBracket,
+        Action::Rotate(15),
+        "Rotate selection 15° counterclockwise",
+        XF,
     ),
     b(
         NONE,
-        Key::ArrowLeft,
-        nudge(-1, 0, Step::Normal),
-        "Arrow keys",
-        "Move selection by 2 pt",
-        "Editing",
+        Key::CloseBracket,
+        Action::Rotate(-15),
+        "Rotate selection 15° clockwise",
+        XF,
     ),
-    b(
-        NONE,
-        Key::ArrowRight,
-        nudge(1, 0, Step::Normal),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        NONE,
-        Key::ArrowUp,
-        nudge(0, 1, Step::Normal),
-        "",
-        "",
-        "Editing",
-    ),
-    b(
-        NONE,
-        Key::ArrowDown,
-        nudge(0, -1, Step::Normal),
-        "",
-        "",
-        "Editing",
-    ),
+    LARGE[0],
+    LARGE[1],
+    LARGE[2],
+    LARGE[3],
+    PIXEL[0],
+    PIXEL[1],
+    PIXEL[2],
+    PIXEL[3],
+    NORMAL[0],
+    NORMAL[1],
+    NORMAL[2],
+    NORMAL[3],
     // View
-    b(NONE, Key::Plus, Action::ZoomIn, "+", "Zoom in", "View"),
-    b(NONE, Key::Equals, Action::ZoomIn, "=", "Zoom in", "View"),
-    b(NONE, Key::Minus, Action::ZoomOut, "-", "Zoom out", "View"),
-    b(NONE, Key::Num1, Action::Zoom1, "1", "Zoom 1:1", "View"),
+    b(NONE, Key::Plus, Action::ZoomIn, "Zoom in", VIEW),
+    b(NONE, Key::Equals, Action::ZoomIn, "Zoom in", VIEW),
+    b(NONE, Key::Minus, Action::ZoomOut, "Zoom out", VIEW),
+    b(NONE, Key::Num1, Action::Zoom1, "Zoom 1:1", VIEW),
     b(
         NONE,
         Key::Num3,
         Action::ZoomSelection,
-        "3",
         "Zoom to selection",
-        "View",
+        VIEW,
     ),
     b(
         NONE,
         Key::Num4,
         Action::ZoomDrawing,
-        "4",
         "Zoom to drawing",
-        "View",
+        VIEW,
     ),
     b(
         NONE,
         Key::Num5,
         Action::ZoomPage,
-        "5",
         "Zoom to page (the export area)",
-        "View",
+        VIEW,
     ),
-    Binding {
-        trigger: Trigger::Text("#"),
-        action: Action::ToggleGrid,
-        keys: "#",
-        desc: "Toggle grid (snapping to the grid follows its visibility)",
-        group: "View",
-        inkscape: true,
-    },
+    special(
+        Trigger::Text("#"),
+        Action::ToggleGrid,
+        "Toggle grid (snapping to the grid follows its visibility)",
+        VIEW,
+    ),
+    b(CMD, Key::R, Action::ToggleRulers, "Toggle rulers", VIEW),
+    own(b(
+        NONE,
+        Key::I,
+        Action::ToggleIds,
+        "Show object ids and coordinates on the canvas",
+        VIEW,
+    )),
     // Dialogs and file
     b(
         CMD_SHIFT,
         Key::F,
         Action::ShowFillStroke,
-        "Ctrl+Shift+F",
         "Fill & Stroke (object properties)",
-        "Dialogs and file",
+        FILE,
     ),
+    b(CMD_SHIFT, Key::L, Action::ShowObjects, "Objects", FILE),
     b(
         CMD_SHIFT,
-        Key::L,
-        Action::ShowObjects,
-        "Ctrl+Shift+L",
-        "Objects",
-        "Dialogs and file",
+        Key::A,
+        Action::ShowAlign,
+        "Align & Distribute",
+        FILE,
     ),
     b(
         CMD_SHIFT,
         Key::X,
         Action::ShowSource,
-        "Ctrl+Shift+X",
         "Source (the .gold text; counterpart of Inkscape's XML editor)",
-        "Dialogs and file",
+        FILE,
     ),
-    b(
-        CMD_SHIFT,
-        Key::S,
-        Action::SaveAs,
-        "Ctrl+Shift+S",
-        "Save as",
-        "Dialogs and file",
-    ),
+    b(CMD_SHIFT, Key::S, Action::SaveAs, "Save as", FILE),
     b(
         CMD_SHIFT,
         Key::E,
         Action::Export,
-        "Ctrl+Shift+E",
         "Export (PDF, SVG, PNG, TikZ)",
-        "Dialogs and file",
+        FILE,
     ),
-    b(
-        CMD,
-        Key::N,
-        Action::New,
-        "Ctrl+N",
-        "New",
-        "Dialogs and file",
-    ),
+    b(CMD, Key::N, Action::New, "New", FILE),
     b(
         CMD,
         Key::O,
         Action::Open,
-        "Ctrl+O",
         "Open (.gold, or an SVG made by Goldstone)",
-        "Dialogs and file",
+        FILE,
     ),
-    b(
-        CMD,
-        Key::S,
-        Action::Save,
-        "Ctrl+S",
-        "Save",
-        "Dialogs and file",
-    ),
-    Binding {
-        trigger: Trigger::Text("?"),
-        action: Action::Shortcuts,
-        keys: "?",
-        desc: "Show keyboard shortcuts",
-        group: "Dialogs and file",
-        inkscape: false,
-    },
+    b(CMD, Key::S, Action::Save, "Save", FILE),
+    own(b(
+        CMD_SHIFT,
+        Key::T,
+        Action::FromLatex,
+        "Diagram from LaTeX: draw a tensor expression such as E2 = V_ijab T_abij",
+        FILE,
+    )),
+    b(CMD, Key::Q, Action::Quit, "Quit", FILE),
+    own(special(
+        Trigger::Text("?"),
+        Action::Shortcuts,
+        "Show keyboard shortcuts",
+        FILE,
+    )),
 ];
 
-/// Mouse interactions, for the manual. (Handled in the canvas code.)
+fn key_name(k: Key) -> &'static str {
+    match k {
+        Key::Escape => "Esc",
+        Key::Minus => "-",
+        Key::Plus => "+",
+        Key::Equals => "=",
+        Key::OpenBracket => "[",
+        Key::CloseBracket => "]",
+        Key::Num1 => "1",
+        Key::Num3 => "3",
+        Key::Num4 => "4",
+        Key::Num5 => "5",
+        Key::Num6 => "6",
+        Key::Num8 => "8",
+        _ => k.name(),
+    }
+}
+
+/// How a binding's keys are written on `os`.
+pub fn keys_label(bnd: &Binding, os: Os) -> String {
+    let (mods, key) = match bnd.trigger {
+        Trigger::Key(m, k) => (m, bnd.key_label.unwrap_or(key_name(k))),
+        Trigger::Text(t) => return t.to_string(),
+        Trigger::Copy => (CMD, "C"),
+        Trigger::Cut => (CMD, "X"),
+        Trigger::Paste => (CMD, "V"),
+    };
+    let key = match (os, key) {
+        (Os::Mac, "Backspace") => "⌫",
+        (Os::Mac, "Delete") => "⌦",
+        (Os::Mac, "Tab") => "⇥",
+        _ => key,
+    };
+    let mut parts: Vec<&str> = Vec::new();
+    // macOS order is ⌃⌥⇧⌘; elsewhere Ctrl+Alt+Shift.
+    if mods.ctrl && os == Os::Mac {
+        parts.push("⌃");
+    }
+    if mods.command && os == Os::Other {
+        parts.push("Ctrl");
+    }
+    if mods.alt {
+        parts.push(os.alt());
+    }
+    if mods.shift {
+        parts.push(os.shift());
+    }
+    if mods.command && os == Os::Mac {
+        parts.push("⌘");
+    }
+    parts.push(key);
+    match os {
+        Os::Mac if parts.len() > 1 && key.chars().count() > 1 => {
+            // "⇧ Arrow" reads better than "⇧Arrow".
+            let (k, m) = parts.split_last().expect("non-empty");
+            format!("{} {k}", m.concat())
+        }
+        Os::Mac => parts.concat(),
+        Os::Other => parts.join("+"),
+    }
+}
+
+/// The label of the first listed binding for `action` on `os`.
+pub fn shortcut(action: Action, os: Os) -> String {
+    BINDINGS
+        .iter()
+        .find(|b| b.action == action && b.only.includes(os))
+        .map_or(String::new(), |b| keys_label(b, os))
+}
+
+/// Whether a key event with modifiers `m` fires a binding `mods`+`key` on `os`.
+pub fn matches(mods: Modifiers, key: Key, m: Modifiers, os: Os) -> bool {
+    // Shift is part of typing "+" on most layouts.
+    let shift_ok = m.shift == mods.shift || matches!(key, Key::Plus | Key::Equals | Key::Minus);
+    // On macOS the Control key is separate from Command.
+    let ctrl_ok = os != Os::Mac || m.ctrl == mods.ctrl;
+    m.command == mods.command && m.alt == mods.alt && shift_ok && ctrl_ok
+}
+
+/// Mouse interactions, for the manual. `{cmd}`, `{alt}`, `{shift}` are
+/// written per platform. (Handled in the canvas code.)
 pub const MOUSE: &[(&str, &str, &str, bool)] = &[
-    ("Select tool", "Click", "Select only this object", true),
     (
         "Select tool",
-        "Shift+click",
+        "Click",
+        "Select only this object (a whole group if it is in one)",
+        true,
+    ),
+    (
+        "Select tool",
+        "{shift}click",
         "Add or remove this object (toggle)",
+        true,
+    ),
+    (
+        "Select tool",
+        "{cmd}click",
+        "Select one object inside a group",
         true,
     ),
     (
@@ -450,46 +742,69 @@ pub const MOUSE: &[(&str, &str, &str, bool)] = &[
     ),
     (
         "Select tool",
-        "Shift+drag on empty canvas",
+        "{shift}drag on empty canvas",
         "Rubber band: add to the selection",
         true,
     ),
     (
         "Select tool",
-        "Ctrl+Shift+drag on empty canvas",
+        "{cmd}{shift}drag on empty canvas",
         "Rubber band: remove from the selection",
         false,
     ),
     (
+        "Select tool",
+        "{alt}drag",
+        "Touch select: select every object the red path crosses",
+        true,
+    ),
+    (
+        "Select tool",
+        "{shift}{alt}drag",
+        "Touch select: add to the selection",
+        true,
+    ),
+    (
         "Any tool",
-        "Ctrl while dragging",
+        "{cmd} while dragging",
         "Move only horizontally or vertically",
         true,
     ),
     (
         "Any tool",
-        "Shift while dragging or placing",
+        "{shift} while dragging or placing",
         "Do not snap",
         true,
     ),
     (
-        "Edge tool",
-        "Click, click",
+        "Line tool",
+        "Click, click (or drag)",
         "Straight line; ends snap to vertices, or create invisible vertices",
         true,
     ),
     (
-        "Edge tool",
-        "Click, then drag at the second point",
-        "Arc through the point where the mouse is released",
-        false,
-    ),
-    ("Edge tool", "Click the same vertex twice", "Loop", false),
-    (
-        "Edge tool",
+        "Line, Arc tool",
         "Esc or right click",
         "Cancel the line being drawn",
         true,
+    ),
+    (
+        "Arc tool",
+        "Click start, click end, click",
+        "Arc; the last click sets the bulge ({cmd}: bend in 15° steps)",
+        false,
+    ),
+    (
+        "Arc tool",
+        "Click, then drag at the end point",
+        "Arc through the point where the mouse is released",
+        false,
+    ),
+    (
+        "Arc tool",
+        "Click the same vertex twice, then click",
+        "Loop toward the pointer, sized by its distance",
+        false,
     ),
     (
         "Edit tool",
@@ -511,42 +826,68 @@ pub const MOUSE: &[(&str, &str, &str, bool)] = &[
         false,
     ),
     (
+        "Rectangle, Ellipse",
+        "Drag",
+        "Draw the shape; {cmd} makes it a square / circle",
+        true,
+    ),
+    (
         "View",
-        "Scroll / Shift+scroll",
+        "Scroll / {shift}scroll",
         "Pan vertically / horizontally",
         true,
     ),
     (
         "View",
-        "Ctrl+scroll, or pinch",
+        "{cmd}scroll, or pinch",
         "Zoom around the pointer",
         true,
     ),
     ("View", "Middle-button drag, or Space+drag", "Pan", true),
 ];
 
-/// The shortcut section of the manual, in Markdown.
+/// The shortcut section of the manual, in Markdown, with a column per
+/// platform.
 pub fn manual_markdown() -> String {
     let mut out = String::new();
     let mut group = "";
-    for bnd in BINDINGS.iter().filter(|b| !b.keys.is_empty()) {
+    for bnd in BINDINGS.iter().filter(|b| b.listed) {
         if bnd.group != group {
             group = bnd.group;
             out.push_str(&format!(
-                "\n### {group}\n\n| Keys | Action | Inkscape |\n|---|---|---|\n"
+                "\n### {group}\n\n| Linux / Windows | macOS | Action | Inkscape |\n|---|---|---|---|\n"
             ));
         }
+        let col = |os: Os| {
+            if bnd.only.includes(os) {
+                format!("`{}`", keys_label(bnd, os))
+            } else {
+                "—".into()
+            }
+        };
         let ink = if bnd.inkscape {
             "same"
         } else {
             "Goldstone only"
         };
-        out.push_str(&format!("| `{}` | {} | {ink} |\n", bnd.keys, bnd.desc));
+        out.push_str(&format!(
+            "| {} | {} | {} | {ink} |\n",
+            col(Os::Other),
+            col(Os::Mac),
+            bnd.desc
+        ));
     }
-    out.push_str("\n### Mouse\n\n| Where | Input | Action | Inkscape |\n|---|---|---|---|\n");
+    out.push_str(
+        "\n### Mouse\n\n| Where | Linux / Windows | macOS | Action | Inkscape |\n|---|---|---|---|---|\n",
+    );
     for (ctx, input, desc, ink) in MOUSE {
         let ink = if *ink { "same" } else { "Goldstone only" };
-        out.push_str(&format!("| {ctx} | {input} | {desc} | {ink} |\n"));
+        out.push_str(&format!(
+            "| {ctx} | {} | {} | {} | {ink} |\n",
+            Os::Other.fill(input),
+            Os::Mac.fill(input),
+            Os::Other.fill(desc),
+        ));
     }
     out
 }
@@ -571,11 +912,61 @@ mod tests {
 
     #[test]
     fn no_duplicate_triggers() {
-        let mut seen = Vec::new();
-        for x in BINDINGS {
-            let k = format!("{:?}", x.trigger);
-            assert!(!seen.contains(&k), "duplicate binding {k}");
-            seen.push(k);
+        for os in [Os::Mac, Os::Other] {
+            let mut seen = Vec::new();
+            for x in BINDINGS.iter().filter(|b| b.only.includes(os)) {
+                let k = format!("{:?}", x.trigger);
+                assert!(!seen.contains(&k), "duplicate binding {k} on {os:?}");
+                seen.push(k);
+            }
         }
+    }
+
+    #[test]
+    fn labels_follow_the_platform() {
+        let redo = &BINDINGS[BINDINGS
+            .iter()
+            .position(|b| b.action == Action::Redo)
+            .unwrap()];
+        assert_eq!(keys_label(redo, Os::Mac), "⇧⌘Z");
+        assert_eq!(keys_label(redo, Os::Other), "Ctrl+Shift+Z");
+        assert_eq!(shortcut(Action::Copy, Os::Mac), "⌘C");
+        assert_eq!(shortcut(Action::Copy, Os::Other), "Ctrl+C");
+        assert_eq!(
+            shortcut(
+                Action::Nudge {
+                    dx: -1,
+                    dy: 0,
+                    step: Step::Large
+                },
+                Os::Mac
+            ),
+            "⇧ Arrow"
+        );
+        assert_eq!(shortcut(Action::PasteInPlace, Os::Other), "Ctrl+Alt+V");
+        assert_eq!(shortcut(Action::PasteInPlace, Os::Mac), "⌥⌘V");
+        assert_eq!(Os::Mac.fill("{cmd}{shift}drag"), "⌘⇧drag");
+        assert_eq!(Os::Other.fill("{cmd}{shift}drag"), "Ctrl+Shift+drag");
+    }
+
+    #[test]
+    fn macos_control_is_not_command() {
+        let ctrl_z = Modifiers {
+            ctrl: true,
+            ..Default::default()
+        };
+        let cmd_z = Modifiers {
+            mac_cmd: true,
+            command: true,
+            ..Default::default()
+        };
+        assert!(!matches(CMD, Key::Z, ctrl_z, Os::Mac));
+        assert!(matches(CMD, Key::Z, cmd_z, Os::Mac));
+        let linux_ctrl_z = Modifiers {
+            ctrl: true,
+            command: true,
+            ..Default::default()
+        };
+        assert!(matches(CMD, Key::Z, linux_ctrl_z, Os::Other));
     }
 }

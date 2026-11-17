@@ -189,6 +189,39 @@ pub fn hit(doc: &Document, scene: &Scene, texts: &TextBoxes, p: Point, tol: f64)
     None
 }
 
+/// Every object at `p` (for touch selection).
+pub fn hit_all(
+    doc: &Document,
+    scene: &Scene,
+    texts: &TextBoxes,
+    p: Point,
+    tol: f64,
+) -> Vec<ObjRef> {
+    let mut out = Vec::new();
+    for (i, v) in doc.vertices.iter().enumerate() {
+        let d = (Point::new(v.at[0], v.at[1]) - p).hypot();
+        if d <= v.size.unwrap_or(4.0) / 2.0 + tol {
+            out.push(ObjRef::Vertex(i));
+        }
+    }
+    for (obj, q) in texts {
+        if in_quad(q, p) {
+            out.push(*obj);
+        }
+    }
+    for item in &scene.items {
+        if let Mark::Path(pi) = &item.mark
+            && !out.contains(&item.obj)
+        {
+            let w = pi.stroke.as_ref().map_or(0.0, |s| s.width / 2.0);
+            if (pi.fill.is_some() && pi.path.contains(p)) || path_distance(&pi.path, p) <= tol + w {
+                out.push(item.obj);
+            }
+        }
+    }
+    out
+}
+
 /// Bounding boxes of all objects, for rubber-band selection.
 pub fn object_bounds(doc: &Document, scene: &Scene, texts: &TextBoxes) -> Vec<(ObjRef, Rect)> {
     use std::collections::BTreeMap;

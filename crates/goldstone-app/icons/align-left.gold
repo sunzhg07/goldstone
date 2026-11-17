@@ -1,0 +1,32 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Align left edges
+
+[[shape]]
+kind = "box"
+at = [11, 16]
+size = [12, 5]
+fill = "#3584e4"
+width = 1
+
+[[shape]]
+kind = "box"
+at = [9, 8]
+size = [8, 5]
+fill = "#a8c8f0"
+width = 1
+
+[[vertex]]
+id = "p1"
+at = [4, 2]
+
+[[vertex]]
+id = "p2"
+at = [4, 22]
+
+[[edge]]
+from = "p1"
+to = "p2"
+width = 1.6
+layer = 1

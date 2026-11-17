@@ -1,0 +1,106 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Ungroup: two objects set free from the frame
+
+[[shape]]
+kind = "box"
+at = [7.5, 8]
+size = [6, 6]
+fill = "#3584e4"
+width = 1
+
+[[shape]]
+kind = "ellipse"
+at = [16.5, 16]
+size = [7, 7]
+fill = "#a8c8f0"
+width = 1
+
+[[vertex]]
+id = "p1"
+at = [2, 2]
+
+[[vertex]]
+id = "p2"
+at = [6, 2]
+
+[[edge]]
+from = "p2"
+to = "p1"
+width = 1.2
+
+[[vertex]]
+id = "p3"
+at = [2, 6]
+
+[[edge]]
+from = "p1"
+to = "p3"
+width = 1.2
+
+[[vertex]]
+id = "p4"
+at = [22, 2]
+
+[[vertex]]
+id = "p5"
+at = [18, 2]
+
+[[edge]]
+from = "p5"
+to = "p4"
+width = 1.2
+
+[[vertex]]
+id = "p6"
+at = [22, 6]
+
+[[edge]]
+from = "p4"
+to = "p6"
+width = 1.2
+
+[[vertex]]
+id = "p7"
+at = [22, 22]
+
+[[vertex]]
+id = "p8"
+at = [18, 22]
+
+[[edge]]
+from = "p8"
+to = "p7"
+width = 1.2
+
+[[vertex]]
+id = "p9"
+at = [22, 18]
+
+[[edge]]
+from = "p7"
+to = "p9"
+width = 1.2
+
+[[vertex]]
+id = "p10"
+at = [2, 22]
+
+[[vertex]]
+id = "p11"
+at = [6, 22]
+
+[[edge]]
+from = "p11"
+to = "p10"
+width = 1.2
+
+[[vertex]]
+id = "p12"
+at = [2, 18]
+
+[[edge]]
+from = "p10"
+to = "p12"
+width = 1.2

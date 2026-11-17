@@ -1,0 +1,11 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Ellipse tool
+
+[[shape]]
+kind = "ellipse"
+at = [12, 12]
+size = [19, 13]
+fill = "#a8c8f0"
+width = 1.5

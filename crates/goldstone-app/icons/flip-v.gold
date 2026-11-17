@@ -1,0 +1,30 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Flip vertically
+
+[[vertex]]
+id = "p1"
+at = [2, 12]
+
+[[vertex]]
+id = "p2"
+at = [22, 12]
+
+[[edge]]
+from = "p1"
+to = "p2"
+stroke = "dashed"
+dash = [2, 1.5]
+width = 0.9
+
+[[shape]]
+kind = "polygon"
+points = [[5, 14], [19, 14], [5, 21]]
+fill = "#3584e4"
+width = 1.2
+
+[[shape]]
+kind = "polygon"
+points = [[5, 10], [19, 10], [5, 3]]
+width = 1.2

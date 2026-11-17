@@ -46,7 +46,7 @@ fn editor_screenshots() {
     let mut h = harness("mbpt2.gold");
     h.get_by_label("Objects").click();
     h.run_steps(2);
-    h.get_by_label("a → c  [particle]  $a$").click();
+    h.get_by_label_contains("e3  a (0, 0) → c").click();
     h.run_steps(2);
     h.key_press(Key::N);
     shoot(&mut h, "03-edit-tool-objects");
@@ -61,4 +61,62 @@ fn editor_screenshots() {
     h.run_steps(2);
     h.get_by_label_contains("Keyboard and Mouse").click();
     shoot(&mut h, "06-shortcuts");
+
+    // Ids and coordinates on the canvas; multi-edit with mixed values.
+    let mut h = harness("mbpt2.gold");
+    h.key_press(Key::I);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    shoot(&mut h, "07-ids-multi-edit");
+
+    h.get_by_label("Align").click();
+    shoot(&mut h, "08-align");
+
+    h.get_by_label("Path").click();
+    shoot(&mut h, "09-path-menu");
+
+    let mut h = harness("mbpt2.gold");
+    h.key_press_modifiers(
+        Modifiers {
+            shift: true,
+            ..Modifiers::COMMAND
+        },
+        Key::T,
+    );
+    shoot(&mut h, "11-latex-dialog");
+    h.get_by_label("Insert").click();
+    shoot(&mut h, "12-latex-inserted");
+}
+
+/// All icons on one sheet, at 4× (light theme tint).
+#[test]
+#[ignore = "writes a PNG; run explicitly"]
+fn icon_sheet() {
+    let Ok(dir) = std::env::var("GOLDSTONE_SHOTS") else {
+        return;
+    };
+    let mut labels = goldstone_export::Labels::new();
+    let px = 96u32;
+    let cols = 9u32;
+    let n = goldstone_app::icons::SOURCES.len() as u32;
+    let rows = n.div_ceil(cols);
+    let (w, h) = (cols * (px + 8), rows * (px + 8));
+    let mut sheet = image::RgbaImage::from_pixel(w, h, image::Rgba([248, 248, 248, 255]));
+    for (k, (name, _)) in goldstone_app::icons::SOURCES.iter().enumerate() {
+        let mut p = goldstone_app::icons::render(name, px, &mut labels).unwrap();
+        goldstone_app::icons::tint(&mut p, [30, 30, 30], [248, 248, 248]);
+        let (x0, y0) = (
+            (k as u32 % cols) * (px + 8) + 4,
+            (k as u32 / cols) * (px + 8) + 4,
+        );
+        for y in 0..px {
+            for x in 0..px {
+                let i = ((y * px + x) * 4) as usize;
+                let a = p[i + 3] as u32;
+                let bg = sheet.get_pixel(x0 + x, y0 + y).0;
+                let c = |k: usize| (p[i + k] as u32 + bg[k] as u32 * (255 - a) / 255) as u8;
+                sheet.put_pixel(x0 + x, y0 + y, image::Rgba([c(0), c(1), c(2), 255]));
+            }
+        }
+    }
+    sheet.save(PathBuf::from(dir).join("10-icons.png")).unwrap();
 }

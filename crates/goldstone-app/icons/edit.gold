@@ -1,0 +1,48 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Edit tool: a Bezier edge with its control points and handles
+
+[[vertex]]
+id = "p1"
+at = [4, 5]
+kind = "square"
+size = 4
+fill = "#3584e4"
+
+[[vertex]]
+id = "p2"
+at = [20, 5]
+kind = "square"
+size = 4
+fill = "#3584e4"
+
+[[vertex]]
+id = "p3"
+at = [4, 20]
+kind = "circle"
+size = 3.5
+fill = "white"
+
+[[vertex]]
+id = "p4"
+at = [20, 20]
+kind = "circle"
+size = 3.5
+fill = "white"
+
+[[edge]]
+from = "p1"
+to = "p2"
+controls = [[4, 20], [20, 20]]
+width = 1.6
+
+[[edge]]
+from = "p1"
+to = "p3"
+width = 0.7
+
+[[edge]]
+from = "p2"
+to = "p4"
+width = 0.7

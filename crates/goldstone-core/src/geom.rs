@@ -236,16 +236,23 @@ pub fn displaced(base: &ArcLen, n: usize, f: impl Fn(f64) -> (f64, f64)) -> BezP
     out
 }
 
+// The wiggly strokes take an `offset`: the whole wiggle is shifted that far
+// to the left of `base` (right if negative). Both lines of a double wiggly
+// line are made this way from the same base, so they stay in phase even on
+// arcs, where offset curves have different lengths.
+
 /// Photon line: a sine wave with a whole number of half-waves.
-pub fn wavy(base: &ArcLen, amplitude: f64, wavelength: f64) -> BezPath {
+pub fn wavy(base: &ArcLen, amplitude: f64, wavelength: f64, offset: f64) -> BezPath {
     let len = base.length();
     let halves = ((2.0 * len / wavelength).round() as usize).max(1);
     let k = std::f64::consts::PI * halves as f64 / len;
-    displaced(base, halves * 6, |s| (0.0, amplitude * (k * s).sin()))
+    displaced(base, halves * 6, |s| {
+        (0.0, offset + amplitude * (k * s).sin())
+    })
 }
 
 /// Gluon line: a coil (prolate trochoid) with a whole number of loops.
-pub fn curly(base: &ArcLen, amplitude: f64, wavelength: f64) -> BezPath {
+pub fn curly(base: &ArcLen, amplitude: f64, wavelength: f64, offset: f64) -> BezPath {
     let len = base.length();
     let loops = ((len / wavelength).round() as usize).max(1);
     let total = std::f64::consts::TAU * loops as f64;
@@ -253,24 +260,26 @@ pub fn curly(base: &ArcLen, amplitude: f64, wavelength: f64) -> BezPath {
     let c = 0.35 * len / loops as f64;
     displaced(base, loops * 24, |s| {
         let u = total * s / len;
-        (-c * u.sin(), amplitude * 0.5 * (1.0 - u.cos()))
+        (-c * u.sin(), offset + amplitude * 0.5 * (1.0 - u.cos()))
     })
 }
 
 /// Zigzag line with a whole number of teeth (straight segments).
-pub fn zigzag(base: &ArcLen, amplitude: f64, wavelength: f64) -> BezPath {
+pub fn zigzag(base: &ArcLen, amplitude: f64, wavelength: f64, offset: f64) -> BezPath {
     let len = base.length();
     let halves = ((2.0 * len / wavelength).round() as usize).max(1);
     let step = len / halves as f64;
-    let mut out = BezPath::new();
-    out.move_to(base.eval(0.0).0);
-    for i in 0..halves {
-        let s = step * (i as f64 + 0.5);
+    let at = |s: f64, d: f64| {
         let (p, t) = base.eval(s);
+        p + left_normal(t) * d
+    };
+    let mut out = BezPath::new();
+    out.move_to(at(0.0, offset));
+    for i in 0..halves {
         let sign = if i % 2 == 0 { 1.0 } else { -1.0 };
-        out.line_to(p + left_normal(t) * (amplitude * sign));
+        out.line_to(at(step * (i as f64 + 0.5), offset + amplitude * sign));
     }
-    out.line_to(base.eval(len).0);
+    out.line_to(at(len, offset));
     out
 }
 
@@ -357,9 +366,9 @@ mod tests {
         let b = Point::new(53.0, 17.0);
         let base = ArcLen::new(&bent(a, b, 20.0));
         for path in [
-            wavy(&base, 3.0, 8.0),
-            curly(&base, 4.0, 6.0),
-            zigzag(&base, 3.0, 6.0),
+            wavy(&base, 3.0, 8.0, 0.0),
+            curly(&base, 4.0, 6.0, 0.0),
+            zigzag(&base, 3.0, 6.0, 0.0),
         ] {
             let segs: Vec<_> = path.segments().collect();
             assert!(close(segs.first().unwrap().start(), a));

@@ -1,0 +1,109 @@
+# Double lines: every stroke style and line shape can be doubled;
+# `double_sep` sets the distance between the two lines (pt).
+format = 1
+
+[style.dbl]
+double = true
+
+[[vertex]]
+id = "a1"
+at = [0, 0]
+[[vertex]]
+id = "b1"
+at = [80, 0]
+[[edge]]
+from = "a1"
+to = "b1"
+class = "dbl"
+arrow = "forward"
+label = "plain"
+
+[[vertex]]
+id = "a2"
+at = [0, -25]
+[[vertex]]
+id = "b2"
+at = [80, -25]
+[[edge]]
+from = "a2"
+to = "b2"
+class = "dbl"
+stroke = "dashed"
+double_sep = 4
+label = "dashed, gap 4"
+
+[[vertex]]
+id = "a3"
+at = [0, -55]
+[[vertex]]
+id = "b3"
+at = [80, -55]
+[[edge]]
+from = "a3"
+to = "b3"
+class = "dbl"
+stroke = "wavy"
+label = "wavy"
+
+[[vertex]]
+id = "a4"
+at = [0, -90]
+[[vertex]]
+id = "b4"
+at = [80, -90]
+[[edge]]
+from = "a4"
+to = "b4"
+class = "dbl"
+stroke = "curly"
+double_sep = 3
+label = "curly"
+
+[[vertex]]
+id = "a5"
+at = [0, -125]
+[[vertex]]
+id = "b5"
+at = [80, -125]
+[[edge]]
+from = "a5"
+to = "b5"
+class = "dbl"
+stroke = "zigzag"
+double_sep = 4
+label = "zigzag"
+
+[[vertex]]
+id = "c"
+at = [120, -20]
+kind = "dot"
+[[vertex]]
+id = "e"
+at = [180, -20]
+kind = "dot"
+[[edge]]
+from = "c"
+to = "e"
+class = "dbl"
+bend = 60
+arrow = "forward"
+label = "arc"
+[[edge]]
+from = "c"
+to = "e"
+class = "dbl"
+stroke = "wavy"
+bend = -60
+
+[[vertex]]
+id = "f"
+at = [150, -110]
+kind = "dot"
+[[edge]]
+from = "f"
+to = "f"
+class = "dbl"
+double_sep = 2
+loop = { radius = 15, angle = 90 }
+arrow = "forward"
+label = "loop"

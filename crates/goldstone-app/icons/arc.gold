@@ -1,0 +1,33 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Arc tool: an arc with an arrow between two vertices, its chord dashed
+
+[[vertex]]
+id = "p1"
+at = [3.5, 6]
+kind = "dot"
+size = 4
+
+[[vertex]]
+id = "p2"
+at = [20.5, 6]
+kind = "dot"
+size = 4
+
+[[edge]]
+from = "p1"
+to = "p2"
+bend = 100
+width = 1.5
+arrow = "forward"
+arrow_length = 6.5
+arrow_width = 5.5
+
+[[edge]]
+from = "p1"
+to = "p2"
+stroke = "dashed"
+dash = [1.5, 1.5]
+width = 0.7
+color = "#3584e4"

@@ -12,4 +12,6 @@ goldstone-export = { version = "0.1.0", path = "../goldstone-export" }
 rfd = "0.18"
 
 [dev-dependencies]
+goldstone-export = { version = "0.1.0", path = "../goldstone-export" }
+image = { version = "0.25", default-features = false, features = ["png"] }
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot", "eframe"] }

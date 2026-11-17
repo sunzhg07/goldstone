@@ -8,13 +8,14 @@ use egui::{
     StrokeKind,
 };
 use goldstone_core::kurbo::{BezPath, PathEl, Point, Rect, Vec2};
-use goldstone_core::model::{ArrowDir, Document, LoopSpec, Stroke, VertexKind};
+use goldstone_core::model::{ArrowDir, Document, LoopSpec, ShapeKind, Stroke, VertexKind};
 use goldstone_core::scene::{self, ObjRef, Scene};
-use goldstone_core::{geom, io};
+use goldstone_core::{geom, inspect, io};
 use goldstone_export::{Format, Labels};
 
 use crate::doc_ops::{self, Selection};
-use crate::keys::{Action, BINDINGS, Step, Trigger};
+use crate::icons::Icons;
+use crate::keys::{self, Action, BINDINGS, Os, Step, Trigger};
 use crate::view::{self, TextBoxes, View};
 
 pub const ACCENT: Color32 = Color32::from_rgb(30, 120, 230);
@@ -22,35 +23,61 @@ const DESK: Color32 = Color32::from_rgb(222, 222, 226);
 const PICK_PX: f64 = 6.0;
 const SNAP_PX: f64 = 9.0;
 const HANDLE_PX: f32 = 5.0;
+/// Width of the rulers in screen points.
+pub const RULER: f32 = 18.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     Select,
     Edit,
     Edge,
+    Arc,
     Vertex,
     Cross,
     Text,
+    Rect,
+    Ellipse,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 6] = [
+    pub const ALL: [Tool; 9] = [
         Tool::Select,
         Tool::Edit,
         Tool::Edge,
+        Tool::Arc,
         Tool::Vertex,
         Tool::Cross,
         Tool::Text,
+        Tool::Rect,
+        Tool::Ellipse,
     ];
+
+    /// Name of the tool's icon (`icons/<name>.gold`).
+    pub fn icon(self) -> &'static str {
+        match self {
+            Tool::Select => "select",
+            Tool::Edit => "edit",
+            Tool::Edge => "edge",
+            Tool::Arc => "arc",
+            Tool::Vertex => "vertex",
+            Tool::Cross => "cross",
+            Tool::Text => "text",
+            Tool::Rect => "rect",
+            Tool::Ellipse => "ellipse",
+        }
+    }
 
     pub fn name(self) -> &'static str {
         match self {
             Tool::Select => "Select",
             Tool::Edit => "Edit",
-            Tool::Edge => "Edge",
+            Tool::Edge => "Line",
+            Tool::Arc => "Arc",
             Tool::Vertex => "Vertex",
             Tool::Cross => "Cross",
             Tool::Text => "Text",
+            Tool::Rect => "Rectangle",
+            Tool::Ellipse => "Ellipse",
         }
     }
 
@@ -59,26 +86,34 @@ impl Tool {
             Tool::Select => "S",
             Tool::Edit => "N",
             Tool::Edge => "B",
+            Tool::Arc => "A",
             Tool::Vertex => "P",
             Tool::Cross => "X",
             Tool::Text => "T",
+            Tool::Rect => "R",
+            Tool::Ellipse => "E",
         }
     }
 
     pub fn hint(self) -> &'static str {
         match self {
             Tool::Select => {
-                "Click to select, Shift+click to add/remove, drag to move; drag on empty canvas to select a region"
+                "Click to select (Shift: add/remove), drag to move; drag on empty canvas to select a region, Alt+drag to touch-select"
             }
             Tool::Edit => {
                 "Drag the round handle to bend a line or resize a loop, the diamond to move the arrow"
             }
             Tool::Edge => {
-                "Click, click: line (ends snap to vertices). Drag at the second point: arc. Same vertex twice: loop. Esc cancels"
+                "Click, click: straight line (ends snap to vertices, or make invisible vertices). Esc cancels"
+            }
+            Tool::Arc => {
+                "Click the start, click the end, then move to set the bulge and click. Same vertex twice: loop. Esc cancels"
             }
             Tool::Vertex => "Click to place a vertex",
             Tool::Cross => "Click to place a cross; drag from a vertex to draw ---X",
             Tool::Text => "Click to place a LaTeX label, then type it in Fill & Stroke",
+            Tool::Rect => "Drag to draw a rectangle (Ctrl: square)",
+            Tool::Ellipse => "Drag to draw an ellipse (Ctrl: circle)",
         }
     }
 }
@@ -87,6 +122,7 @@ impl Tool {
 pub enum Tab {
     FillStroke,
     Objects,
+    Align,
     Source,
 }
 
@@ -98,6 +134,10 @@ pub struct ToolOptions {
     /// `None`: take the arrow from the class (or none).
     pub arrow: Option<ArrowDir>,
     pub vertex_kind: VertexKind,
+    /// New lines are double lines.
+    pub double: bool,
+    /// Separation of new double lines (`None`: class / default).
+    pub double_sep: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -147,6 +187,15 @@ enum Drag {
     },
     EdgeFree {
         start: EdgeEnd,
+    },
+    /// Touch selection: the screen path drawn so far.
+    Touch {
+        points: Vec<Pos2>,
+        add: bool,
+    },
+    ShapeNew {
+        start: Point,
+        kind: ShapeKind,
     },
 }
 
@@ -220,6 +269,26 @@ enum Pending {
     Quit,
 }
 
+/// Diagram from LaTeX dialog.
+pub struct LatexDialog {
+    pub open: bool,
+    pub text: String,
+    /// Result of parsing `text`: a summary, or the error.
+    pub status: Result<String, String>,
+    pub(crate) for_text: Option<String>,
+}
+
+impl Default for LatexDialog {
+    fn default() -> Self {
+        Self {
+            open: false,
+            text: r"E2 = \sum_{abij} V_{ijab} T_{abij}".into(),
+            status: Ok(String::new()),
+            for_text: None,
+        }
+    }
+}
+
 pub struct SourceState {
     pub text: String,
     pub for_doc: Option<Document>,
@@ -248,12 +317,15 @@ pub struct GoldstoneApp {
     pub(crate) selection: Selection,
     drag: Option<Drag>,
     pending_edge: Option<EdgeEnd>,
+    /// Arc tool: both ends chosen, the bulge follows the pointer.
+    arc_end: Option<EdgeEnd>,
     texture: Option<(egui::TextureHandle, TextureKey)>,
     pub(crate) tab: Tab,
     pub(crate) show_grid: bool,
     pub(crate) message: Option<String>,
     pub(crate) show_shortcuts: bool,
     pub(crate) show_about: bool,
+    pub(crate) latex: LatexDialog,
     pub(crate) source: SourceState,
     confirm: Option<Pending>,
     pub(crate) focus_text_content: bool,
@@ -262,6 +334,16 @@ pub struct GoldstoneApp {
     pointer_doc: Option<Point>,
     allow_close: bool,
     title: String,
+    pub(crate) icons: Icons,
+    pub(crate) show_rulers: bool,
+    pub(crate) show_ids: bool,
+    /// Key conventions and labels (Cmd on macOS, Ctrl elsewhere).
+    pub(crate) os: Os,
+    /// Last copied objects as `.gold` text.
+    clipboard: Option<String>,
+    /// Text delivered by the platform's paste shortcut.
+    paste_text: Option<String>,
+    pub(crate) hover: Option<ObjRef>,
 }
 
 impl GoldstoneApp {
@@ -303,16 +385,20 @@ impl GoldstoneApp {
                 class: None,
                 arrow: None,
                 vertex_kind: VertexKind::Dot,
+                double: false,
+                double_sep: None,
             },
             selection: Selection::new(),
             drag: None,
             pending_edge: None,
+            arc_end: None,
             texture: None,
             tab: Tab::FillStroke,
             show_grid: true,
             message: None,
             show_shortcuts: false,
             show_about: false,
+            latex: LatexDialog::default(),
             source: SourceState {
                 text: String::new(),
                 for_doc: None,
@@ -325,6 +411,13 @@ impl GoldstoneApp {
             pointer_doc: None,
             allow_close: false,
             title: String::new(),
+            icons: Icons::default(),
+            show_rulers: true,
+            show_ids: false,
+            os: Os::current(),
+            clipboard: None,
+            paste_text: None,
+            hover: None,
         };
         if let Some(p) = path {
             app.load(&p);
@@ -340,6 +433,11 @@ impl GoldstoneApp {
     /// The selected objects.
     pub fn selected(&self) -> Vec<ObjRef> {
         self.selection.iter().copied().collect()
+    }
+
+    /// The `.gold` text of the last copy, if any.
+    pub fn clipboard_text(&self) -> Option<&str> {
+        self.clipboard.as_deref()
     }
 
     /// Screen position of a document point on the canvas (for tests).
@@ -362,6 +460,7 @@ impl GoldstoneApp {
         self.selection.clear();
         self.drag = None;
         self.pending_edge = None;
+        self.arc_end = None;
         self.view_fitted = false;
         self.source.for_doc = None;
         self.rename = None;
@@ -596,6 +695,7 @@ impl GoldstoneApp {
     pub(crate) fn set_tool(&mut self, t: Tool) {
         self.tool = t;
         self.pending_edge = None;
+        self.arc_end = None;
     }
 
     pub(crate) fn do_action(&mut self, a: Action, ctx: &egui::Context) {
@@ -604,9 +704,12 @@ impl GoldstoneApp {
             Action::ToolSelect => self.set_tool(Tool::Select),
             Action::ToolEdit => self.set_tool(Tool::Edit),
             Action::ToolEdge => self.set_tool(Tool::Edge),
+            Action::ToolArc => self.set_tool(Tool::Arc),
             Action::ToolVertex => self.set_tool(Tool::Vertex),
             Action::ToolCross => self.set_tool(Tool::Cross),
             Action::ToolText => self.set_tool(Tool::Text),
+            Action::ToolRect => self.set_tool(Tool::Rect),
+            Action::ToolEllipse => self.set_tool(Tool::Ellipse),
             Action::Undo => {
                 if !self.history.undo(&mut self.doc) {
                     self.message = Some("Nothing to undo".into());
@@ -623,12 +726,104 @@ impl GoldstoneApp {
             }
             Action::SelectAll => self.selection = doc_ops::all_objects(&self.doc),
             Action::Deselect => {
-                if self.pending_edge.take().is_none() && self.drag.take().is_none() {
+                let drawing = self.pending_edge.take().is_some() | self.arc_end.take().is_some();
+                if !drawing && self.drag.take().is_none() {
                     self.selection.clear();
                 }
             }
             Action::FlipH => doc_ops::flip(&mut self.doc, &self.selection, true),
             Action::FlipV => doc_ops::flip(&mut self.doc, &self.selection, false),
+            Action::Rotate(deg) => doc_ops::rotate(&mut self.doc, &self.selection, deg as f64),
+            Action::Copy => {
+                self.copy(ctx);
+            }
+            Action::Cut => {
+                if self.copy(ctx) {
+                    let sel = std::mem::take(&mut self.selection);
+                    doc_ops::delete(&mut self.doc, &sel);
+                }
+            }
+            Action::Paste | Action::PasteInPlace => {
+                let text = self.paste_text.take().or_else(|| self.clipboard.clone());
+                match text {
+                    Some(t) => self.paste(&t, a == Action::PasteInPlace),
+                    None => self.message = Some("Nothing to paste".into()),
+                }
+            }
+            Action::Duplicate => {
+                if !self.selection.is_empty() {
+                    let part = doc_ops::extract(&self.doc, &self.selection);
+                    self.selection = doc_ops::merge(&mut self.doc, part);
+                }
+            }
+            Action::SelectNext | Action::SelectPrev => {
+                let all: Vec<ObjRef> = doc_ops::all_objects(&self.doc).into_iter().collect();
+                if !all.is_empty() {
+                    let n = all.len();
+                    let next = match self
+                        .selection
+                        .last()
+                        .and_then(|o| all.iter().position(|x| x == o))
+                    {
+                        None if a == Action::SelectNext => 0,
+                        None => n - 1,
+                        Some(i) if a == Action::SelectNext => {
+                            // Skip the rest of the current group.
+                            (1..=n)
+                                .map(|k| (i + k) % n)
+                                .find(|j| !self.selection.contains(&all[*j]))
+                                .unwrap_or(i)
+                        }
+                        Some(_) => {
+                            let first = self
+                                .selection
+                                .first()
+                                .and_then(|o| all.iter().position(|x| x == o))
+                                .unwrap_or(0);
+                            (first + n - 1) % n
+                        }
+                    };
+                    self.selection = doc_ops::with_group(&self.doc, all[next]);
+                }
+            }
+            Action::SelectSame(same) => {
+                if self.selection.is_empty() {
+                    self.message = Some("Select an object first".into());
+                } else {
+                    self.selection = doc_ops::select_same(&self.doc, &self.selection, same);
+                }
+            }
+            Action::Group => match doc_ops::group(&mut self.doc, &self.selection) {
+                Some(id) => {
+                    self.message = Some(format!("Grouped {} objects as {id}", self.selection.len()))
+                }
+                None => self.message = Some("Select at least two objects to group".into()),
+            },
+            Action::Ungroup => {
+                let n = doc_ops::ungroup(&mut self.doc, &self.selection);
+                self.message = Some(match n {
+                    0 => "No group selected".into(),
+                    1 => "Ungrouped 1 group".into(),
+                    n => format!("Ungrouped {n} groups"),
+                });
+            }
+            Action::Align(op) => {
+                let units = self.align_units();
+                doc_ops::align(&mut self.doc, &units, op);
+            }
+            Action::Bool(op) => match doc_ops::boolean(&mut self.doc, &self.selection, op) {
+                Ok(i) => self.selection = [ObjRef::Shape(i)].into(),
+                Err(e) => self.message = Some(e),
+            },
+            Action::ObjectToPath => {
+                let n = doc_ops::object_to_path(&mut self.doc, &self.selection);
+                self.message = Some(format!("Converted {n} shape(s) to paths"));
+            }
+            Action::ToggleRulers => self.show_rulers = !self.show_rulers,
+            Action::ToggleIds => self.show_ids = !self.show_ids,
+            Action::ShowAlign => self.tab = Tab::Align,
+            Action::Quit => self.request(Pending::Quit, ctx),
+            Action::FromLatex => self.latex.open = true,
             Action::Nudge { dx, dy, step } => {
                 let s = match step {
                     Step::Normal => 2.0,
@@ -671,48 +866,179 @@ impl GoldstoneApp {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
+        let os = self.os;
         let mut fired = Vec::new();
+        let mut paste = None;
         ctx.input_mut(|i| {
-            for bnd in BINDINGS {
-                let hit = match bnd.trigger {
-                    Trigger::Key(mods, key) => {
-                        let mut hit = false;
-                        i.events.retain(|e| {
-                            if let egui::Event::Key {
+            for bnd in BINDINGS.iter().filter(|b| b.only.includes(os)) {
+                let mut hit = false;
+                i.events.retain(|e| {
+                    if hit {
+                        return true;
+                    }
+                    hit = match (bnd.trigger, e) {
+                        (
+                            Trigger::Key(mods, key),
+                            egui::Event::Key {
                                 key: k,
                                 pressed: true,
                                 modifiers: m,
                                 ..
-                            } = e
-                                && !hit
-                                && *k == key
-                                && m.command == mods.command
-                                && m.alt == mods.alt
-                                && (m.shift == mods.shift
-                                    || matches!(key, Key::Plus | Key::Equals | Key::Minus))
-                            {
-                                hit = true;
-                                return false;
-                            }
+                            },
+                        ) => *k == key && keys::matches(mods, key, *m, os),
+                        (Trigger::Text(t), egui::Event::Text(s)) => s == t,
+                        (Trigger::Copy, egui::Event::Copy) => true,
+                        (Trigger::Cut, egui::Event::Cut) => true,
+                        (Trigger::Paste, egui::Event::Paste(text)) => {
+                            paste = Some(text.clone());
                             true
-                        });
-                        hit
-                    }
-                    Trigger::Text(t) => {
-                        let before = i.events.len();
-                        i.events
-                            .retain(|e| !matches!(e, egui::Event::Text(s) if s == t));
-                        i.events.len() != before
-                    }
-                };
+                        }
+                        _ => false,
+                    };
+                    !hit
+                });
                 if hit {
                     fired.push(bnd.action);
                 }
             }
         });
+        if paste.is_some() {
+            self.paste_text = paste;
+        }
         for a in fired {
             self.do_action(a, ctx);
         }
+    }
+
+    // ---- clipboard ------------------------------------------------------------
+
+    /// Copies the selection; the clipboard gets its `.gold` text.
+    fn copy(&mut self, ctx: &egui::Context) -> bool {
+        if self.selection.is_empty() {
+            self.message = Some("Nothing selected to copy".into());
+            return false;
+        }
+        let part = doc_ops::extract(&self.doc, &self.selection);
+        let text = io::to_toml(&part);
+        ctx.copy_text(text.clone());
+        self.clipboard = Some(text);
+        self.message = Some(format!(
+            "Copied {} object(s); the clipboard holds their .gold text",
+            self.selection.len()
+        ));
+        true
+    }
+
+    /// Pastes `.gold` text: at the pointer, or where it was (`in_place`).
+    fn paste(&mut self, text: &str, in_place: bool) {
+        let Ok(part) = io::parse(text) else {
+            self.message = Some("The clipboard does not hold Goldstone objects".into());
+            return;
+        };
+        let new = doc_ops::merge(&mut self.doc, part);
+        if !in_place {
+            let target = match self.pointer_doc {
+                Some(p) => self.snap(p, false, &BTreeSet::new()).0,
+                None => {
+                    let g = self.grid();
+                    doc_ops::bounds(&doc_ops::selection_points(&self.doc, &new))
+                        .map_or(Point::ZERO, |b| b.center() + Vec2::new(g, -g))
+                }
+            };
+            if let Some(b) = doc_ops::bounds(&doc_ops::selection_points(&self.doc, &new)) {
+                let c = self.snap(b.center(), !self.show_grid, &BTreeSet::new()).0;
+                doc_ops::translate(&mut self.doc, &new, target - c);
+            }
+        }
+        self.message = Some(format!("Pasted {} object(s)", new.len()));
+        self.selection = new;
+    }
+
+    /// Adds the diagram of the LaTeX expression in the dialog: to the
+    /// right of the drawing, or as the whole document (`replace`).
+    pub(crate) fn insert_latex(&mut self, replace: bool) {
+        let part = match goldstone_core::expr::from_latex(&self.latex.text) {
+            Ok(d) => d,
+            Err(e) => {
+                self.latex.status = Err(e);
+                return;
+            }
+        };
+        if replace {
+            self.doc.vertices.clear();
+            self.doc.edges.clear();
+            self.doc.texts.clear();
+            self.doc.axes.clear();
+            self.doc.shapes.clear();
+            self.doc.groups.clear();
+        }
+        let existing = self.page();
+        let new = doc_ops::merge(&mut self.doc, part);
+        if let (Some(old), Some(b)) = (
+            existing.filter(|_| !replace),
+            doc_ops::bounds(&doc_ops::selection_points(&self.doc, &new)),
+        ) {
+            let g = self.grid();
+            let x = ((old.x1 + 40.0 - b.x0) / g).round() * g;
+            let y = ((old.y0 + self.scene.margin - b.y0) / g).round() * g;
+            doc_ops::translate(&mut self.doc, &new, Vec2::new(x, y));
+        }
+        self.message = Some(format!(
+            "Drew {}: {} lines",
+            self.latex.text.trim(),
+            new.iter().filter(|o| matches!(o, ObjRef::Edge(_))).count()
+        ));
+        self.selection = new;
+        self.view_fitted = false;
+    }
+
+    /// Units for Align & Distribute: groups move as one; a selected edge
+    /// moves its vertices unless those are selected themselves.
+    fn align_units(&self) -> Vec<(Selection, Rect)> {
+        let bounds: std::collections::BTreeMap<ObjRef, Rect> =
+            view::object_bounds(&self.doc, &self.scene, &self.text_boxes)
+                .into_iter()
+                .collect();
+        let mut units: Vec<Selection> = Vec::new();
+        let mut seen = Selection::new();
+        for o in &self.selection {
+            if seen.contains(o) {
+                continue;
+            }
+            let unit = match doc_ops::group_of(&self.doc, *o) {
+                Some(g) => doc_ops::group_members(&self.doc, g),
+                None => [*o].into(),
+            };
+            seen.extend(unit.iter().copied());
+            units.push(unit);
+        }
+        let selected_vertices = doc_ops::moved_vertices(
+            &self.doc,
+            &self
+                .selection
+                .iter()
+                .filter(|o| matches!(o, ObjRef::Vertex(_)))
+                .copied()
+                .collect(),
+        );
+        units
+            .into_iter()
+            .filter(|u| {
+                // A lone edge whose ends are aligned on their own is skipped.
+                !(u.len() == 1
+                    && matches!(u.first(), Some(ObjRef::Edge(_)))
+                    && doc_ops::moved_vertices(&self.doc, u)
+                        .iter()
+                        .any(|v| selected_vertices.contains(v)))
+            })
+            .filter_map(|u| {
+                let r = u
+                    .iter()
+                    .filter_map(|o| bounds.get(o).copied())
+                    .reduce(|a, b| a.union(b))?;
+                Some((u, r))
+            })
+            .collect()
     }
 
     // ---- creating objects ---------------------------------------------------
@@ -741,6 +1067,32 @@ impl GoldstoneApp {
         }
     }
 
+    /// The point the arc passes through for pointer `p`; with Ctrl the
+    /// bend snaps to 15° steps.
+    fn arc_through(&self, start: EdgeEnd, end: EdgeEnd, p: Point, ctrl: bool) -> Point {
+        let (a, b) = (self.end_point(start), self.end_point(end));
+        if !ctrl || start == end {
+            return p;
+        }
+        let bend = (doc_ops::bend_through(a, b, p) / 15.0).round() * 15.0;
+        if bend == 0.0 {
+            return a.midpoint(b);
+        }
+        let al = geom::ArcLen::new(&geom::bent(a, b, bend));
+        al.eval(al.length() / 2.0).0
+    }
+
+    /// Preview path of the arc (or loop) being drawn.
+    fn arc_preview(&self, start: EdgeEnd, end: EdgeEnd, through: Point) -> BezPath {
+        let (a, b) = (self.end_point(start), self.end_point(end));
+        if start == end {
+            let r = ((through - a).hypot() / 2.0).max(1.0);
+            geom::loop_at(a, r, (through - a).atan2().to_degrees())
+        } else {
+            geom::bent(a, b, doc_ops::bend_through(a, b, through))
+        }
+    }
+
     fn finish_edge(&mut self, start: EdgeEnd, end: EdgeEnd, through: Option<Point>) {
         let (a, b) = (self.end_point(start), self.end_point(end));
         let is_loop = matches!((start, end), (EdgeEnd::Vertex(x), EdgeEnd::Vertex(y)) if x == y);
@@ -757,10 +1109,17 @@ impl GoldstoneApp {
         e.class = self.opts.class.clone();
         e.stroke = (self.opts.stroke != Stroke::Plain).then_some(self.opts.stroke);
         e.arrow = self.opts.arrow;
+        if self.opts.double {
+            e.double = Some(true);
+            e.double_sep = self.opts.double_sep;
+        }
         if is_loop {
             let angle = through.map_or(90.0, |p| (p - a).atan2().to_degrees().round());
+            let radius = through
+                .map(|p| doc_ops::round((p - a).hypot() / 2.0).max(1.0))
+                .filter(|r| *r >= 2.0);
             e.loop_ = Some(LoopSpec {
-                radius: None,
+                radius,
                 angle: Some(angle),
             });
         } else if let Some(p) = through {
@@ -899,14 +1258,28 @@ impl GoldstoneApp {
         )
     }
 
-    fn click_select(&mut self, p: Point, shift: bool) {
+    /// `o` with its group, unless `inside` (Ctrl+click enters groups).
+    fn unit(&self, o: ObjRef, inside: bool) -> Selection {
+        if inside {
+            [o].into()
+        } else {
+            doc_ops::with_group(&self.doc, o)
+        }
+    }
+
+    fn click_select(&mut self, p: Point, shift: bool, inside: bool) {
         match self.hit(p) {
             Some(o) if shift => {
-                if !self.selection.remove(&o) {
-                    self.selection.insert(o);
+                let unit = self.unit(o, inside);
+                if self.selection.contains(&o) {
+                    unit.iter().for_each(|u| {
+                        self.selection.remove(u);
+                    });
+                } else {
+                    self.selection.extend(unit);
                 }
             }
-            Some(o) => self.selection = [o].into(),
+            Some(o) => self.selection = self.unit(o, inside),
             None if !shift => self.selection.clear(),
             None => {}
         }
@@ -914,10 +1287,11 @@ impl GoldstoneApp {
 
     fn start_move(&mut self, o: ObjRef, press: Point, shift: bool) {
         if !self.selection.contains(&o) {
+            let unit = self.unit(o, false);
             if shift {
-                self.selection.insert(o);
+                self.selection.extend(unit);
             } else {
-                self.selection = [o].into();
+                self.selection = unit;
             }
         }
         let anchor = match o {
@@ -940,7 +1314,17 @@ impl GoldstoneApp {
     }
 
     fn canvas(&mut self, ui: &mut egui::Ui) {
-        let (rect, resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
+        let (full, _) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
+        let rect = if self.show_rulers {
+            egui::Rect::from_min_max(full.min + egui::vec2(RULER, RULER), full.max)
+        } else {
+            full
+        };
+        let resp = ui.interact(
+            rect,
+            ui.scope_id().with("goldstone-canvas"),
+            Sense::click_and_drag(),
+        );
         self.canvas_rect = rect;
         if !self.view_fitted && rect.width() > 10.0 {
             self.sync_scene();
@@ -962,6 +1346,7 @@ impl GoldstoneApp {
         let space = space && !ui.ctx().egui_wants_keyboard_input();
         let hover = resp.hover_pos();
         self.pointer_doc = hover.map(|h| self.view.to_doc(rect, h));
+        self.hover = self.pointer_doc.and_then(|p| self.hit(p));
 
         // ---- view navigation
         if let Some(h) = hover {
@@ -983,10 +1368,14 @@ impl GoldstoneApp {
         }
         if resp.secondary_clicked() {
             self.pending_edge = None;
+            self.arc_end = None;
         }
 
         self.sync_scene();
         self.paint(ui, rect);
+        if self.show_rulers {
+            self.paint_rulers(ui, full, rect);
+        }
     }
 
     fn tool_input(
@@ -999,18 +1388,43 @@ impl GoldstoneApp {
         let to_doc = |p: Pos2| self.view.to_doc(rect, p);
         let pointer = resp.interact_pointer_pos().or(resp.hover_pos()).map(to_doc);
         let press = ui.input(|i| i.pointer.press_origin()).map(to_doc);
-        let (shift, ctrl) = (mods.shift, mods.command);
+        let (shift, ctrl, alt) = (mods.shift, mods.command, mods.alt);
 
         if resp.clicked_by(PointerButton::Primary) {
             let Some(p) = pointer else { return };
             match self.tool {
-                Tool::Select | Tool::Edit => self.click_select(p, shift),
+                Tool::Select | Tool::Edit => self.click_select(p, shift, ctrl),
+                Tool::Rect | Tool::Ellipse => self.click_select(p, shift, ctrl),
                 Tool::Edge => {
                     let (q, v) = self.snap(p, shift, &BTreeSet::new());
                     let end = v.map_or(EdgeEnd::Point(q), EdgeEnd::Vertex);
                     match self.pending_edge.take() {
                         None => self.pending_edge = Some(end),
+                        Some(start) if start == end => {
+                            self.pending_edge = Some(start);
+                            self.message = Some("For a loop use the Arc tool (A)".into());
+                        }
                         Some(start) => self.finish_edge(start, end, None),
+                    }
+                }
+                Tool::Arc => {
+                    if let (Some(start), Some(end)) = (self.pending_edge, self.arc_end) {
+                        let through = self.arc_through(start, end, p, ctrl);
+                        self.pending_edge = None;
+                        self.arc_end = None;
+                        self.finish_edge(start, end, Some(through));
+                    } else {
+                        let (q, v) = self.snap(p, shift, &BTreeSet::new());
+                        let end = v.map_or(EdgeEnd::Point(q), EdgeEnd::Vertex);
+                        match self.pending_edge {
+                            None => self.pending_edge = Some(end),
+                            Some(start) => {
+                                let loop_ = matches!(end, EdgeEnd::Vertex(_)) && start == end;
+                                if loop_ || (self.end_point(start) - q).hypot() > 1e-6 {
+                                    self.arc_end = Some(end);
+                                }
+                            }
+                        }
                     }
                 }
                 Tool::Vertex | Tool::Cross => {
@@ -1045,6 +1459,21 @@ impl GoldstoneApp {
         if resp.drag_started_by(PointerButton::Primary) {
             let Some(p) = press else { return };
             self.drag = match self.tool {
+                Tool::Select if alt => Some(Drag::Touch {
+                    points: vec![self.view.to_screen(rect, p)],
+                    add: shift,
+                }),
+                Tool::Rect | Tool::Ellipse => {
+                    let (q, _) = self.snap(p, shift, &BTreeSet::new());
+                    Some(Drag::ShapeNew {
+                        start: q,
+                        kind: if self.tool == Tool::Rect {
+                            ShapeKind::Box
+                        } else {
+                            ShapeKind::Ellipse
+                        },
+                    })
+                }
                 Tool::Select | Tool::Edit => {
                     let tol = HANDLE_PX as f64 * 1.6 / self.view.zoom;
                     let handle = if self.tool == Tool::Edit {
@@ -1080,10 +1509,21 @@ impl GoldstoneApp {
                     let (q, v) = self.snap(p, shift, &BTreeSet::new());
                     let at = v.map_or(EdgeEnd::Point(q), EdgeEnd::Vertex);
                     match self.pending_edge.take() {
-                        Some(start) => Some(Drag::EdgeTo { start, end: at }),
+                        Some(start) => Some(Drag::EdgeFree { start }),
                         None => Some(Drag::EdgeFree { start: at }),
                     }
                 }
+                Tool::Arc if self.arc_end.is_none() => {
+                    let (q, v) = self.snap(p, shift, &BTreeSet::new());
+                    let at = v.map_or(EdgeEnd::Point(q), EdgeEnd::Vertex);
+                    match self.pending_edge.take() {
+                        // Press at the end point and drag: arc through the release point.
+                        Some(start) => Some(Drag::EdgeTo { start, end: at }),
+                        // Drag from start to end; then set the bulge.
+                        None => Some(Drag::EdgeFree { start: at }),
+                    }
+                }
+                Tool::Arc => None,
                 Tool::Cross => match self.hit(p) {
                     Some(ObjRef::Vertex(i)) => Some(Drag::CrossFrom { vertex: i }),
                     _ => None,
@@ -1138,6 +1578,13 @@ impl GoldstoneApp {
                     self.apply_handle(&base, edge, kind, p, ctrl, shift);
                     self.drag = Some(Drag::Handle { base, edge, kind });
                 }
+                Some(Drag::Touch { mut points, add }) => {
+                    let s = self.view.to_screen(rect, p);
+                    if points.last().is_none_or(|l| l.distance(s) >= 1.0) {
+                        points.push(s);
+                    }
+                    self.drag = Some(Drag::Touch { points, add });
+                }
                 other => self.drag = other,
             }
         }
@@ -1149,7 +1596,7 @@ impl GoldstoneApp {
                     if let Some(e) = resp.interact_pointer_pos().or(resp.hover_pos()) {
                         let (a, b) = (self.view.to_doc(rect, start), self.view.to_doc(rect, e));
                         let r = Rect::from_points(a, b);
-                        let inside: Vec<ObjRef> =
+                        let inside: Selection =
                             view::object_bounds(&self.doc, &self.scene, &self.text_boxes)
                                 .into_iter()
                                 .filter(|(_, b)| {
@@ -1157,6 +1604,16 @@ impl GoldstoneApp {
                                 })
                                 .map(|(o, _)| o)
                                 .collect();
+                        // A group is picked only when all of it is inside.
+                        let inside: Vec<ObjRef> = inside
+                            .iter()
+                            .filter(|o| {
+                                doc_ops::with_group(&self.doc, **o)
+                                    .iter()
+                                    .all(|m| inside.contains(m))
+                            })
+                            .copied()
+                            .collect();
                         match mode {
                             RubberMode::Replace => self.selection = inside.into_iter().collect(),
                             RubberMode::Add => self.selection.extend(inside),
@@ -1183,18 +1640,76 @@ impl GoldstoneApp {
                 }
                 Some(Drag::EdgeTo { start, end: e }) => {
                     if let Some(p) = end {
-                        self.finish_edge(start, e, Some(p));
+                        let through = self.arc_through(start, e, p, ctrl);
+                        self.finish_edge(start, e, Some(through));
                     }
                 }
                 Some(Drag::EdgeFree { start }) => {
                     if let Some(p) = end {
                         let (q, v) = self.snap(p, shift, &BTreeSet::new());
-                        self.finish_edge(start, v.map_or(EdgeEnd::Point(q), EdgeEnd::Vertex), None);
+                        let e = v.map_or(EdgeEnd::Point(q), EdgeEnd::Vertex);
+                        if self.tool == Tool::Arc {
+                            if start == e && matches!(e, EdgeEnd::Point(_)) {
+                                self.pending_edge = Some(start);
+                            } else {
+                                self.pending_edge = Some(start);
+                                self.arc_end = Some(e);
+                            }
+                        } else if start != e {
+                            self.finish_edge(start, e, None);
+                        }
+                    }
+                }
+                Some(Drag::Touch { points, add }) => {
+                    let tol = PICK_PX / self.view.zoom;
+                    let mut touched = Selection::new();
+                    for w in points.windows(2) {
+                        let n = (w[0].distance(w[1]) / 2.0).ceil().max(1.0) as usize;
+                        for k in 0..=n {
+                            let s = w[0] + (w[1] - w[0]) * (k as f32 / n as f32);
+                            let p = self.view.to_doc(rect, s);
+                            touched.extend(view::hit_all(
+                                &self.doc,
+                                &self.scene,
+                                &self.text_boxes,
+                                p,
+                                tol,
+                            ));
+                        }
+                    }
+                    let touched: Selection = touched
+                        .into_iter()
+                        .flat_map(|o| doc_ops::with_group(&self.doc, o))
+                        .collect();
+                    if add {
+                        self.selection.extend(touched);
+                    } else {
+                        self.selection = touched;
+                    }
+                }
+                Some(Drag::ShapeNew { start, kind }) => {
+                    if let Some(p) = end {
+                        let b = self.shape_corner(start, p, shift, ctrl);
+                        if (b.x - start.x).abs() > 1e-6 && (b.y - start.y).abs() > 1e-6 {
+                            self.doc.shapes.push(doc_ops::new_shape(kind, start, b));
+                            self.selection = [ObjRef::Shape(self.doc.shapes.len() - 1)].into();
+                        }
                     }
                 }
                 _ => {}
             }
         }
+    }
+
+    /// Opposite corner of a shape being drawn: snapped, and square with Ctrl.
+    fn shape_corner(&self, start: Point, p: Point, shift: bool, ctrl: bool) -> Point {
+        let (mut q, _) = self.snap(p, shift, &BTreeSet::new());
+        if ctrl {
+            let d = q - start;
+            let m = d.x.abs().max(d.y.abs());
+            q = start + Vec2::new(m.copysign(d.x), m.copysign(d.y));
+        }
+        q
     }
 
     fn screen_path(&self, rect: egui::Rect, path: &BezPath) -> Vec<Vec<Pos2>> {
@@ -1438,8 +1953,24 @@ impl GoldstoneApp {
             }
         }
 
-        // Edge being drawn.
-        if self.tool == Tool::Edge
+        // Arc with both ends chosen: the bulge follows the pointer.
+        if self.tool == Tool::Arc
+            && let (Some(start), Some(end), Some(p)) =
+                (self.pending_edge, self.arc_end, self.pointer_doc)
+        {
+            let ctrl = ui.input(|i| i.modifiers.command);
+            let path = self.arc_preview(start, end, self.arc_through(start, end, p, ctrl));
+            for line in self.screen_path(rect, &path) {
+                painter.add(egui::Shape::line(line, EStroke::new(1.5, ACCENT)));
+            }
+            for e in [start, end] {
+                painter.circle_stroke(
+                    self.view.to_screen(rect, self.end_point(e)),
+                    4.0,
+                    EStroke::new(1.5, ACCENT),
+                );
+            }
+        } else if matches!(self.tool, Tool::Edge | Tool::Arc)
             && let (Some(start), Some(p)) = (self.pending_edge, self.pointer_doc)
         {
             let shift = ui.input(|i| i.modifiers.shift);
@@ -1464,11 +1995,43 @@ impl GoldstoneApp {
                     painter.rect_stroke(r, 0.0, EStroke::new(1.0, col), StrokeKind::Middle);
                 }
             }
-            Some(Drag::EdgeFree { start }) | Some(Drag::EdgeTo { start, .. }) => {
+            Some(Drag::EdgeFree { start }) => {
                 if let Some(p) = self.pointer_doc {
                     let a = self.view.to_screen(rect, self.end_point(*start));
                     painter
                         .line_segment([a, self.view.to_screen(rect, p)], EStroke::new(1.5, ACCENT));
+                }
+            }
+            Some(Drag::EdgeTo { start, end }) => {
+                if let Some(p) = self.pointer_doc {
+                    let ctrl = ui.input(|i| i.modifiers.command);
+                    let path =
+                        self.arc_preview(*start, *end, self.arc_through(*start, *end, p, ctrl));
+                    for line in self.screen_path(rect, &path) {
+                        painter.add(egui::Shape::line(line, EStroke::new(1.5, ACCENT)));
+                    }
+                }
+            }
+            Some(Drag::Touch { points, .. }) => {
+                painter.add(egui::Shape::line(
+                    points.clone(),
+                    EStroke::new(1.5, Color32::from_rgb(220, 40, 40)),
+                ));
+            }
+            Some(Drag::ShapeNew { start, kind }) => {
+                if let Some(p) = self.pointer_doc {
+                    let (shift, ctrl) = ui.input(|i| (i.modifiers.shift, i.modifiers.command));
+                    let b = self.shape_corner(*start, p, shift, ctrl);
+                    let r = egui::Rect::from_two_pos(
+                        self.view.to_screen(rect, *start),
+                        self.view.to_screen(rect, b),
+                    );
+                    let st = EStroke::new(1.5, ACCENT);
+                    if *kind == ShapeKind::Box {
+                        painter.rect_stroke(r, 0.0, st, StrokeKind::Middle);
+                    } else {
+                        painter.add(egui::Shape::ellipse_stroke(r.center(), r.size() / 2.0, st));
+                    }
                 }
             }
             Some(Drag::CrossFrom { vertex }) => {
@@ -1497,6 +2060,10 @@ impl GoldstoneApp {
             _ => {}
         }
 
+        if self.show_ids {
+            self.paint_ids(&painter, rect);
+        }
+
         if !self.scene_errors.is_empty() {
             painter.text(
                 rect.left_top() + egui::vec2(10.0, 10.0),
@@ -1507,6 +2074,176 @@ impl GoldstoneApp {
             );
         }
         let _ = CornerRadius::ZERO;
+    }
+
+    /// Ids and coordinates next to every object.
+    fn paint_ids(&self, painter: &egui::Painter, rect: egui::Rect) {
+        let ids = scene::ids(&self.doc);
+        let font = FontId::monospace(10.0);
+        let bg = painter
+            .ctx()
+            .global_style()
+            .visuals
+            .extreme_bg_color
+            .gamma_multiply(0.85);
+        let tag = |at: Point, text: String| {
+            let s = self.view.to_screen(rect, at) + egui::vec2(5.0, -5.0);
+            let galley = painter.layout_no_wrap(text, font.clone(), ACCENT);
+            let r = egui::Rect::from_min_size(s - egui::vec2(0.0, galley.size().y), galley.size())
+                .expand(1.5);
+            painter.rect_filled(r, 2.0, bg);
+            painter.galley(r.min + egui::vec2(1.5, 1.5), galley, ACCENT);
+        };
+        for v in &self.doc.vertices {
+            tag(
+                doc_ops::pt(v.at),
+                format!("{} {}", v.id, inspect::point(v.at)),
+            );
+        }
+        for (i, path) in self.scene.edge_paths.iter().enumerate() {
+            if let Some(path) = path {
+                let al = geom::ArcLen::new(path);
+                let mid = al.eval(al.length() / 2.0).0;
+                tag(mid, ids.of(&self.doc, ObjRef::Edge(i)));
+            }
+        }
+        for (i, t) in self.doc.texts.iter().enumerate() {
+            tag(
+                doc_ops::pt(t.at),
+                format!(
+                    "{} {}",
+                    ids.of(&self.doc, ObjRef::Text(i)),
+                    inspect::point(t.at)
+                ),
+            );
+        }
+        for (i, a) in self.doc.axes.iter().enumerate() {
+            tag(
+                doc_ops::pt(a.origin),
+                format!(
+                    "{} {}",
+                    ids.of(&self.doc, ObjRef::Axes(i)),
+                    inspect::point(a.origin)
+                ),
+            );
+        }
+        for (i, s) in self.doc.shapes.iter().enumerate() {
+            if let Ok(o) = goldstone_core::shapes::outline(s) {
+                use goldstone_core::kurbo::Shape as _;
+                let b = o.bounding_box();
+                tag(
+                    Point::new(b.x0, b.y1),
+                    format!(
+                        "{} {}",
+                        ids.of(&self.doc, ObjRef::Shape(i)),
+                        inspect::point([b.x0, b.y1])
+                    ),
+                );
+            }
+        }
+    }
+
+    /// Inkscape-style rulers along the top and left, in pt.
+    fn paint_rulers(&self, ui: &egui::Ui, full: egui::Rect, rect: egui::Rect) {
+        let painter = ui.painter_at(full);
+        let vis = ui.visuals();
+        let bg = vis.faint_bg_color;
+        let fg = vis.text_color();
+        let tick = EStroke::new(1.0, fg.gamma_multiply(0.7));
+        let top = egui::Rect::from_min_max(
+            Pos2::new(rect.left(), full.top()),
+            Pos2::new(full.right(), rect.top()),
+        );
+        let left = egui::Rect::from_min_max(
+            Pos2::new(full.left(), rect.top()),
+            Pos2::new(rect.left(), full.bottom()),
+        );
+        painter.rect_filled(egui::Rect::from_min_max(full.min, rect.min), 0.0, bg);
+        painter.rect_filled(top, 0.0, bg);
+        painter.rect_filled(left, 0.0, bg);
+        painter.line_segment([top.left_bottom(), top.right_bottom()], tick);
+        painter.line_segment([left.right_top(), left.right_bottom()], tick);
+        painter.text(
+            full.min + egui::vec2(RULER / 2.0, RULER / 2.0),
+            Align2::CENTER_CENTER,
+            "pt",
+            FontId::proportional(8.0),
+            fg,
+        );
+        // Major step: 1, 2 or 5 × 10^k pt, at least 60 screen points apart.
+        let raw = 60.0 / self.view.zoom;
+        let mag = 10f64.powf(raw.log10().floor());
+        let step = [1.0, 2.0, 5.0, 10.0]
+            .iter()
+            .map(|m| m * mag)
+            .find(|s| *s >= raw)
+            .unwrap_or(10.0 * mag);
+        let minor = step
+            / if (step / mag).round() == 2.0 {
+                4.0
+            } else {
+                5.0
+            };
+        let v = self.view.visible(rect);
+        let font = FontId::proportional(9.0);
+        let label = |x: f64| inspect::num(x);
+        let painter_top = ui.painter_at(top);
+        let mut x = (v.x0 / minor).floor() * minor;
+        while x <= v.x1 {
+            let sx = self.view.to_screen(rect, Point::new(x, 0.0)).x;
+            let major = ((x / step).round() * step - x).abs() < minor * 0.01;
+            let h = if major { RULER * 0.7 } else { RULER * 0.25 };
+            painter_top.line_segment(
+                [Pos2::new(sx, top.bottom()), Pos2::new(sx, top.bottom() - h)],
+                tick,
+            );
+            if major {
+                painter_top.text(
+                    Pos2::new(sx + 2.0, top.top() + 1.0),
+                    Align2::LEFT_TOP,
+                    label(x),
+                    font.clone(),
+                    fg,
+                );
+            }
+            x += minor;
+        }
+        let painter_left = ui.painter_at(left);
+        let mut y = (v.y0 / minor).floor() * minor;
+        while y <= v.y1 {
+            let sy = self.view.to_screen(rect, Point::new(0.0, y)).y;
+            let major = ((y / step).round() * step - y).abs() < minor * 0.01;
+            let w = if major { RULER * 0.7 } else { RULER * 0.25 };
+            painter_left.line_segment(
+                [Pos2::new(left.right(), sy), Pos2::new(left.right() - w, sy)],
+                tick,
+            );
+            if major {
+                let galley = painter_left.layout_no_wrap(label(y), font.clone(), fg);
+                painter_left.add(
+                    egui::epaint::TextShape::new(
+                        Pos2::new(left.left() + 1.0, sy - 2.0),
+                        galley,
+                        fg,
+                    )
+                    .with_angle(-std::f32::consts::FRAC_PI_2),
+                );
+            }
+            y += minor;
+        }
+        // Pointer position.
+        if let Some(p) = self.pointer_doc {
+            let s = self.view.to_screen(rect, p);
+            let mark = EStroke::new(1.5, ACCENT);
+            painter_top.line_segment(
+                [Pos2::new(s.x, top.top()), Pos2::new(s.x, top.bottom())],
+                mark,
+            );
+            painter_left.line_segment(
+                [Pos2::new(left.left(), s.y), Pos2::new(left.right(), s.y)],
+                mark,
+            );
+        }
     }
 
     // ---- frame --------------------------------------------------------------
@@ -1584,6 +2321,28 @@ impl GoldstoneApp {
         }
     }
 
+    /// The hovered object, or the single selected one: kind, id, where.
+    pub(crate) fn object_text(&self) -> Option<String> {
+        let o = self
+            .hover
+            .or(match (self.selection.len(), self.selection.first()) {
+                (1, Some(o)) => Some(*o),
+                _ => None,
+            })?;
+        if !doc_ops::exists(&self.doc, o) {
+            return None;
+        }
+        let id = scene::ids(&self.doc).of(&self.doc, o);
+        let group = doc_ops::group_of(&self.doc, o).map_or(String::new(), |g| {
+            format!("  [group {}]", self.doc.groups[g].id)
+        });
+        Some(format!(
+            "{} {id}: {}{group}",
+            inspect::kind(o),
+            inspect::summary(&self.doc, o)
+        ))
+    }
+
     pub(crate) fn pointer_text(&self) -> String {
         let pos = self
             .pointer_doc
@@ -1604,16 +2363,22 @@ impl eframe::App for GoldstoneApp {
         {
             self.request(Pending::Open(Some(path)), &ctx);
         }
+        // egui moves keyboard focus between widgets with Tab and the arrow
+        // keys; while no widget has focus those keys belong to the canvas.
+        if ctx.memory(|m| m.focused().is_none()) {
+            ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
+        }
         self.handle_keys(&ctx);
         self.sync_scene();
 
         egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+        egui::Panel::top("commands").show(ui, |ui| self.commands_bar(ui));
         egui::Panel::top("tool-controls").show(ui, |ui| self.tool_controls(ui));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
         egui::Panel::bottom("palettes").show(ui, |ui| self.palettes(ui));
         egui::Panel::left("toolbox")
             .resizable(false)
-            .exact_size(72.0)
+            .exact_size(52.0)
             .show(ui, |ui| self.toolbox(ui));
         egui::Panel::right("dialogs")
             .resizable(true)
@@ -1627,6 +2392,7 @@ impl eframe::App for GoldstoneApp {
         self.confirm_dialog(&ctx);
         self.shortcuts_window(&ctx);
         self.about_window(&ctx);
+        self.latex_window(&ctx);
 
         let interacting =
             ctx.input(|i| i.pointer.any_down()) || ctx.memory(|m| m.focused().is_some());

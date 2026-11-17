@@ -1,0 +1,23 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Cross tool: one-body operator ---X
+
+[[vertex]]
+id = "p1"
+at = [3, 12]
+kind = "dot"
+size = 4
+
+[[vertex]]
+id = "p2"
+at = [18, 12]
+kind = "cross"
+size = 9
+
+[[edge]]
+from = "p1"
+to = "p2"
+stroke = "dashed"
+dash = [3, 2]
+width = 1.5

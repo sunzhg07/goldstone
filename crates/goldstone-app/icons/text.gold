@@ -1,0 +1,9 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Text tool: a LaTeX label
+
+[[text]]
+at = [12, 12]
+content = "$T_x$"
+size = 17

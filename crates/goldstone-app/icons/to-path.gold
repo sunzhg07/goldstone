@@ -1,0 +1,38 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Object to path: an ellipse with its nodes
+
+[[shape]]
+kind = "ellipse"
+at = [12, 12]
+size = [18, 13]
+width = 1.4
+
+[[vertex]]
+id = "p1"
+at = [3, 12]
+kind = "square"
+size = 3.5
+fill = "white"
+
+[[vertex]]
+id = "p2"
+at = [21, 12]
+kind = "square"
+size = 3.5
+fill = "white"
+
+[[vertex]]
+id = "p3"
+at = [12, 5.5]
+kind = "square"
+size = 3.5
+fill = "white"
+
+[[vertex]]
+id = "p4"
+at = [12, 18.5]
+kind = "square"
+size = 3.5
+fill = "white"

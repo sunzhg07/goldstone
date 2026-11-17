@@ -1,6 +1,6 @@
 # Goldstone — Design Document
 
-Status: **M0 and M1 implemented** (file format, geometry, CLI renderer, editor) · 2026-11-17
+Status: **M0, M1 and M2 implemented** (file format, geometry, CLI renderer, editor, multi-selection editing) · 2026-11-17
 
 Goldstone is a desktop app and command-line tool for drawing many-body
 diagrams (coupled cluster, IMSRG, MBPT: Goldstone and Hugenholtz diagrams)
@@ -205,7 +205,7 @@ above right of the vertex).
 |---|---|
 | `from`, `to` | vertex ids (equal ids give a loop) |
 | `stroke` | `plain`, `dashed`, `dotted`, `wavy`, `curly`, `zigzag` |
-| `double` | bool; `double_sep` (pt) |
+| `double` | bool, for any stroke and line shape; `double_sep` (pt): distance between the two lines |
 | `bend` | degrees (an arc through both endpoints); mutually exclusive with `controls` |
 | `controls` | `[[x, y], [x, y]]`, cubic Bézier control points |
 | `loop` | `{ radius, angle }`, used when `from == to` |
@@ -225,8 +225,10 @@ above right of the vertex).
 `length`, `show`, `arrow`, `label`, `ticks` (bool), `tick_spacing`,
 `tick_labels` (bool or a list of strings), `tick_length`.
 
-**Shape:** `kind = "box" | "ellipse" | "polygon"`; `at` + `size` or
-`points`; `fill` color or `"none"`; `rotation`.
+**Shape:** `kind = "box" | "ellipse" | "polygon" | "path"`; `at` + `size`
+(box, ellipse), `points` (polygon) or `d` (path: SVG path data in
+document coordinates, y up, e.g. `"M 0 0 L 10 0 C 12 2 12 8 10 10 Z"`);
+`fill` color or `"none"`; `rotation`. Boolean operations produce paths.
 
 **Group:** `id`, `members = ["a", "e3", …]`. Groups do not nest in v1.
 
@@ -580,10 +582,45 @@ before any GUI work, and it is already useful for scripted diagrams.
   mouse and keyboard input (`crates/goldstone-app/tests/interaction.rs`);
   `tests/screenshots.rs` renders the window offscreen for visual checks.
 
-Deferred from M1 to M2: touch selection (Alt+drag), multi-object editing
-with mixed values in Fill & Stroke (palettes and line width already work
-on many objects), groups, clipboard, rotation (`[` `]`), Tab cycling,
+Deferred from M1 to M2 (all done in M2): touch selection, multi-object
+editing with mixed values, groups, clipboard, rotation, Tab cycling,
 Align & Distribute.
+
+## 9b. Implementation notes (M2)
+
+- **Multi-edit**: Fill & Stroke shows one section per kind of selected
+  object; fields where the objects' own values differ say *mixed*.
+  (Values inherited from different classes are not marked mixed.)
+- **Groups** are flat (`[[group]]` with member ids). Grouping writes the
+  automatic id of members that have none (`e3`), so the group keeps
+  pointing at them when other objects are added or deleted.
+- **Clipboard** content is `.gold` text: the selected objects, the
+  vertices their edges need, their classes and contained groups.
+- **Boolean operations** use `linesweeper` (exact on Bézier curves);
+  results are `kind = "path"` shapes. Rotation and flips are applied to
+  coordinates, so polygons and paths have their rotation baked in.
+- **Platform keys**: bindings are written once with the command modifier
+  (Cmd on macOS, Ctrl elsewhere, chosen at compile time). Labels use the
+  platform's notation (`⇧⌘Z` / `Ctrl+Shift+Z`); a few bindings exist on
+  one platform only (Ctrl+Y redo is not a macOS convention). On macOS the
+  Control key is distinct from Command.
+- **Icons** are `.gold` files rendered by the export pipeline and tinted
+  for the theme; the boolean icons' outlines were computed by Goldstone's
+  own boolean code (`cargo run -p goldstone-core --example bool_icons`).
+- **Line and Arc tools** are separate (B, A). The Arc tool takes three
+  clicks (start, end, bulge); the same vertex twice makes a loop. Fill &
+  Stroke shows an arc's bend, height (sagitta) and radius (+ *deep*),
+  kept in sync; the file stores only `bend`.
+- **Diagrams from LaTeX** (`goldstone_core::expr`): parses a tensor
+  expression (⟨pq|X|rs⟩ index order, a–h particles, i–n holes), checks the
+  contractions, orders operators vertically by arrow direction (particles
+  up, holes down), aligns vertices over their partners (trying vertex
+  permutations), spreads parallel lines into arcs and leans external lines
+  away from internal ones. Output is a plain `.gold` document.
+- **Coordinates**: rulers, an id/coordinate overlay (I), hover info in the
+  status bar, and `goldstone ls`.
+- egui moves keyboard focus with Tab and the arrow keys; while no widget
+  has focus, the editor cancels that so the keys reach the canvas.
 
 ## 10. Open questions
 

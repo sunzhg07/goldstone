@@ -1,0 +1,62 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Group: two objects inside a dashed frame
+
+[[shape]]
+kind = "box"
+at = [8.5, 9]
+size = [7, 7]
+fill = "#3584e4"
+width = 1
+
+[[shape]]
+kind = "ellipse"
+at = [15.5, 15]
+size = [8, 8]
+fill = "#a8c8f0"
+width = 1
+
+[[vertex]]
+id = "p1"
+at = [2, 2]
+
+[[vertex]]
+id = "p2"
+at = [22, 2]
+
+[[vertex]]
+id = "p3"
+at = [22, 22]
+
+[[vertex]]
+id = "p4"
+at = [2, 22]
+
+[[edge]]
+from = "p1"
+to = "p2"
+stroke = "dashed"
+dash = [2, 1.5]
+width = 0.9
+
+[[edge]]
+from = "p2"
+to = "p3"
+stroke = "dashed"
+dash = [2, 1.5]
+width = 0.9
+
+[[edge]]
+from = "p3"
+to = "p4"
+stroke = "dashed"
+dash = [2, 1.5]
+width = 0.9
+
+[[edge]]
+from = "p4"
+to = "p1"
+stroke = "dashed"
+dash = [2, 1.5]
+width = 0.9

@@ -1,0 +1,23 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Difference of two circles; the filled outline was computed by
+# `cargo run -p goldstone-core --example bool_icons`.
+
+[[shape]]
+kind = "path"
+d = "M 7.55 5.66 C 9.07 5.32 10.64 5.53 12 6.23 C 10.77 6.87 9.76 7.9 9.14 9.18 C 8.29 10.96 8.29 13.04 9.14 14.82 C 9.76 16.1 10.77 17.13 12 17.77 L 12 17.77 C 10.64 18.47 9.07 18.68 7.55 18.34 C 5.63 17.9 4 16.6 3.14 14.82 C 2.29 13.04 2.29 10.96 3.14 9.18 C 4 7.4 5.63 6.1 7.55 5.66 Z"
+fill = "#3584e4"
+width = 1.4
+
+[[shape]]
+kind = "ellipse"
+at = [9, 12]
+size = [13, 13]
+width = 0.6
+
+[[shape]]
+kind = "ellipse"
+at = [15, 12]
+size = [13, 13]
+width = 0.6

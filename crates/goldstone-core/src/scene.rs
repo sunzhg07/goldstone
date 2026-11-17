@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
-use kurbo::{Affine, BezPath, Circle, Ellipse, Point, Rect, Shape as _, Vec2};
+use kurbo::{Affine, BezPath, Circle, Point, Rect, Shape as _, Vec2};
 
 use crate::color::Color;
 use crate::geom::{self, ArcLen, left_normal, pt};
@@ -343,6 +343,58 @@ fn auto_id(
     }
 }
 
+/// The id of every object; objects without one get an automatic id
+/// (`e1`, `t1`, `ax1`, `s1`), as in error messages and exports.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ids {
+    pub edges: Vec<String>,
+    pub texts: Vec<String>,
+    pub axes: Vec<String>,
+    pub shapes: Vec<String>,
+}
+
+impl Ids {
+    pub fn of(&self, doc: &Document, r: ObjRef) -> String {
+        let get = |v: &[String], i: usize| v.get(i).cloned().unwrap_or_default();
+        match r {
+            ObjRef::Vertex(i) => doc.vertices.get(i).map_or(String::new(), |v| v.id.clone()),
+            ObjRef::Edge(i) => get(&self.edges, i),
+            ObjRef::Text(i) => get(&self.texts, i),
+            ObjRef::Axes(i) => get(&self.axes, i),
+            ObjRef::Shape(i) => get(&self.shapes, i),
+        }
+    }
+}
+
+pub fn ids(doc: &Document) -> Ids {
+    let mut taken: HashSet<String> = doc
+        .vertices
+        .iter()
+        .map(|v| Some(v.id.clone()))
+        .chain(doc.edges.iter().map(|e| e.id.clone()))
+        .chain(doc.texts.iter().map(|t| t.id.clone()))
+        .chain(doc.axes.iter().map(|a| a.id.clone()))
+        .chain(doc.shapes.iter().map(|s| s.id.clone()))
+        .chain(doc.groups.iter().map(|g| Some(g.id.clone())))
+        .flatten()
+        .collect();
+    let mut assign = |explicit: Vec<&Option<String>>, prefix: &str| -> Vec<String> {
+        let out: Vec<String> = explicit
+            .iter()
+            .enumerate()
+            .map(|(i, e)| auto_id(e, prefix, i, &taken))
+            .collect();
+        taken.extend(out.iter().cloned());
+        out
+    };
+    Ids {
+        edges: assign(doc.edges.iter().map(|e| &e.id).collect(), "e"),
+        texts: assign(doc.texts.iter().map(|t| &t.id).collect(), "t"),
+        axes: assign(doc.axes.iter().map(|a| &a.id).collect(), "ax"),
+        shapes: assign(doc.shapes.iter().map(|s| &s.id).collect(), "s"),
+    }
+}
+
 /// Validates a document and builds its scene.
 pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
     let mut ctx = Ctx {
@@ -378,33 +430,15 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
             ctx.errors.push(format!("id {id:?} is used more than once"));
         }
     }
-    let edge_ids: Vec<String> = doc
-        .edges
-        .iter()
-        .enumerate()
-        .map(|(i, e)| auto_id(&e.id, "e", i, &taken))
-        .collect();
+    let Ids {
+        edges: edge_ids,
+        texts: text_ids,
+        axes: axes_ids,
+        shapes: shape_ids,
+    } = ids(doc);
     taken.extend(edge_ids.iter().cloned());
-    let text_ids: Vec<String> = doc
-        .texts
-        .iter()
-        .enumerate()
-        .map(|(i, t)| auto_id(&t.id, "t", i, &taken))
-        .collect();
     taken.extend(text_ids.iter().cloned());
-    let axes_ids: Vec<String> = doc
-        .axes
-        .iter()
-        .enumerate()
-        .map(|(i, a)| auto_id(&a.id, "ax", i, &taken))
-        .collect();
     taken.extend(axes_ids.iter().cloned());
-    let shape_ids: Vec<String> = doc
-        .shapes
-        .iter()
-        .enumerate()
-        .map(|(i, s)| auto_id(&s.id, "s", i, &taken))
-        .collect();
     taken.extend(shape_ids.iter().cloned());
 
     for g in &doc.groups {
@@ -426,41 +460,11 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
         let width = s.width.or(st.width).unwrap_or(d::WIDTH);
         let width = ctx.non_negative(width, "width", &what);
         let layer = s.layer.or(st.layer).unwrap_or(d::LAYER_SHAPE);
-        let rot = s.rotation.unwrap_or(0.0).to_radians();
-        let path = match s.kind {
-            ShapeKind::Box | ShapeKind::Ellipse => {
-                let (Some(at), Some([w, h])) = (s.at, s.size) else {
-                    ctx.errors
-                        .push(format!("{what}: a {:?} needs `at` and `size`", s.kind));
-                    continue;
-                };
-                let c = pt(at);
-                if s.kind == ShapeKind::Box {
-                    let r = Rect::from_center_size(c, (w, h));
-                    Affine::rotate_about(rot, c) * r.to_path(geom::CURVE_TOL)
-                } else {
-                    Ellipse::new(c, (w / 2.0, h / 2.0), rot).to_path(geom::CURVE_TOL)
-                }
-            }
-            ShapeKind::Polygon => {
-                let pts = s.points.clone().unwrap_or_default();
-                if pts.len() < 3 {
-                    ctx.errors
-                        .push(format!("{what}: a polygon needs at least 3 `points`"));
-                    continue;
-                }
-                let mut p = BezPath::new();
-                p.move_to(pt(pts[0]));
-                for q in &pts[1..] {
-                    p.line_to(pt(*q));
-                }
-                p.close_path();
-                if rot != 0.0 {
-                    let c = p.bounding_box().center();
-                    Affine::rotate_about(rot, c) * p
-                } else {
-                    p
-                }
+        let path = match crate::shapes::outline(s) {
+            Ok(p) => p,
+            Err(e) => {
+                ctx.errors.push(format!("{what}: {e}"));
+                continue;
             }
         };
         let stroke = (width > 0.0).then(|| plain_stroke(color, width));
@@ -691,27 +695,49 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
                 );
                 (Some((amp, wl)), amp)
             }
-            _ => (None, if double { double_sep / 2.0 } else { 0.0 }),
+            _ => (None, 0.0),
         };
-        if double && amp_wl.is_some() {
-            ctx.errors.push(format!(
-                "{what}: `double` is only supported for plain, dashed and dotted strokes"
-            ));
-        }
+        let double_sep = if double {
+            ctx.positive(double_sep, "double_sep", &what)
+        } else {
+            0.0
+        };
+        let extra_offset = extra_offset + double_sep / 2.0;
+        // The center line(s): the base path, or two copies offset by half
+        // the separation on either side. Every stroke style is drawn along
+        // each of them.
+        let centers: Vec<BezPath> = if double {
+            let n = ((len / 3.0).ceil() as usize).max(4);
+            let h = double_sep / 2.0;
+            vec![
+                geom::displaced(&al, n, |_| (0.0, h)),
+                geom::displaced(&al, n, |_| (0.0, -h)),
+            ]
+        } else {
+            vec![base.clone()]
+        };
 
         let mut spec = plain_stroke(color, width);
+        let offsets: Vec<f64> = if double {
+            vec![double_sep / 2.0, -double_sep / 2.0]
+        } else {
+            vec![0.0]
+        };
+        let wiggle = |f: fn(&ArcLen, f64, f64, f64) -> BezPath, a: f64, w: f64| -> Vec<BezPath> {
+            offsets.iter().map(|&o| f(&al, a, w, o)).collect()
+        };
         let paths: Vec<BezPath> = match (stroke, amp_wl) {
             (Stroke::Wavy, Some((a, w))) => {
                 spec.cap = Cap::Round;
                 spec.join = Join::Round;
-                vec![geom::wavy(&al, a, w)]
+                wiggle(geom::wavy, a, w)
             }
             (Stroke::Curly, Some((a, w))) => {
                 spec.cap = Cap::Round;
                 spec.join = Join::Round;
-                vec![geom::curly(&al, a, w)]
+                wiggle(geom::curly, a, w)
             }
-            (Stroke::Zigzag, Some((a, w))) => vec![geom::zigzag(&al, a, w)],
+            (Stroke::Zigzag, Some((a, w))) => wiggle(geom::zigzag, a, w),
             _ => {
                 match stroke {
                     Stroke::Dashed => {
@@ -731,16 +757,7 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
                     }
                     _ => {}
                 }
-                if double {
-                    let n = ((len / 3.0).ceil() as usize).max(4);
-                    let h = double_sep / 2.0;
-                    vec![
-                        geom::displaced(&al, n, |_| (0.0, h)),
-                        geom::displaced(&al, n, |_| (0.0, -h)),
-                    ]
-                } else {
-                    vec![base]
-                }
+                centers
             }
         };
         for p in paths {
@@ -927,6 +944,25 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn every_stroke_can_be_double() {
+        for stroke in ["plain", "dashed", "dotted", "wavy", "curly", "zigzag"] {
+            let src = format!(
+                "format = 1\n[[vertex]]\nid = \"a\"\nat = [0, 0]\n[[vertex]]\nid = \"b\"\nat = [60, 0]\n\
+                 [[edge]]\nfrom = \"a\"\nto = \"b\"\nbend = 60\nstroke = \"{stroke}\"\ndouble = true\ndouble_sep = 4\n"
+            );
+            let doc = crate::io::parse(&src).unwrap();
+            let scene = build(&doc).unwrap_or_else(|e| panic!("{stroke}: {e}"));
+            let paths = scene
+                .items
+                .iter()
+                .filter(|i| matches!(i.mark, Mark::Path(_)))
+                .count();
+            assert_eq!(paths, 2, "{stroke}: two lines");
+        }
+    }
+
     use super::*;
     use crate::io::parse;
     use kurbo::ParamCurve;

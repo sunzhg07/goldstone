@@ -1,0 +1,42 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Distribute centers vertically
+
+[[shape]]
+kind = "box"
+at = [12, 4.5]
+size = [10, 4]
+fill = "#3584e4"
+width = 1
+
+[[shape]]
+kind = "box"
+at = [12, 12]
+size = [16, 4]
+fill = "#a8c8f0"
+width = 1
+
+[[shape]]
+kind = "box"
+at = [12, 19.5]
+size = [7, 4]
+fill = "#3584e4"
+width = 1
+
+[[vertex]]
+id = "p1"
+at = [2, 4.5]
+
+[[vertex]]
+id = "p2"
+at = [2, 19.5]
+
+[[edge]]
+from = "p1"
+to = "p2"
+width = 1
+arrow = "forward"
+arrow_pos = 0.88
+arrow_length = 4
+arrow_width = 4

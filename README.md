@@ -8,7 +8,7 @@ generate from scripts, and keep in git. Goldstone renders them to **PDF,
 SVG, PNG and TikZ**, with LaTeX labels typeset in Computer Modern without
 needing a TeX installation.
 
-Status: **M1**: file format, renderer, and an Inkscape-style editor
+Status: **M2**: file format, renderer, and an Inkscape-style editor with multi-selection editing, groups, clipboard, boolean path operations and Align & Distribute
 (drawing, snapping, selection, Fill & Stroke, undo, save/export). See the
 [user manual](docs/MANUAL.md) and the [design](docs/DESIGN.md).
 
