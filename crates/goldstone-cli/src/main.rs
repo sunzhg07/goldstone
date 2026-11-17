@@ -19,8 +19,8 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
     /// A .tex file: draw every equation in it (as `goldstone tex FILE`).
-    /// A .gold or Goldstone .svg file: open it in the editor.
-    file: Option<PathBuf>,
+    /// .gold or Goldstone .svg files: open them in the editor, one tab each.
+    files: Vec<PathBuf>,
     /// With a .tex file: format of the drawn equations (pdf, svg, png, tikz, gold).
     #[arg(short, long, default_value = "pdf")]
     format: String,
@@ -31,8 +31,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Open the editor, optionally with a .gold file (or an SVG made by Goldstone).
-    Edit { file: Option<PathBuf> },
+    /// Open the editor, optionally with .gold files (or SVGs made by Goldstone), one tab each.
+    Edit { files: Vec<PathBuf> },
     /// Print the keyboard and mouse reference (Markdown, as in docs/MANUAL.md).
     Keys,
     /// Print the licenses of the third-party software and fonts in this program.
@@ -173,21 +173,28 @@ fn load(path: &Path) -> Result<(String, scene::Scene), String> {
 fn run(cli: Cli) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     let Some(command) = cli.command else {
-        if let Some(file) = cli.file {
-            if file
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("tex"))
-            {
-                return tex_batch(&file, cli.out_dir, &cli.format, 300.0);
+        let is_tex = |f: &PathBuf| f.extension().is_some_and(|e| e.eq_ignore_ascii_case("tex"));
+        if cli.files.iter().any(is_tex) {
+            for f in cli.files.iter().filter(|f| !is_tex(f)) {
+                errors.push(format!(
+                    "{}: only .tex files can be given together",
+                    f.display()
+                ));
             }
-            return goldstone_app::run(Some(file))
-                .map_err(|e| vec![format!("cannot open the editor: {e}")]);
+            if !errors.is_empty() {
+                return Err(errors);
+            }
+            for f in &cli.files {
+                tex_batch(f, cli.out_dir.clone(), &cli.format, 300.0)?;
+            }
+            return Ok(());
         }
-        return goldstone_app::run(None).map_err(|e| vec![format!("cannot open the editor: {e}")]);
+        return goldstone_app::run(cli.files)
+            .map_err(|e| vec![format!("cannot open the editor: {e}")]);
     };
     match command {
-        Command::Edit { file } => {
-            return goldstone_app::run(file)
+        Command::Edit { files } => {
+            return goldstone_app::run(files)
                 .map_err(|e| vec![format!("cannot open the editor: {e}")]);
         }
         Command::Keys => out(&goldstone_app::keys::manual_markdown()),

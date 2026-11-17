@@ -2,6 +2,7 @@
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use goldstone_app::app::GoldstoneApp;
 use goldstone_core::model::{Stroke, VertexKind};
 
@@ -347,4 +348,79 @@ fn diagram_from_latex_dialog() {
     assert_eq!(d.vertices.len(), 4);
     assert_eq!(d.edges.len(), 6, "4 lines, 1 interaction, 1 amplitude bar");
     assert_eq!(h.state().selected().len(), 11);
+}
+
+#[test]
+fn tabs_keep_their_own_diagram() {
+    let mut h = harness();
+    h.key_press(Key::B);
+    h.run_steps(2);
+    click(&mut h, 0.0, 0.0);
+    click(&mut h, 0.0, 40.0);
+    assert_eq!(h.state().document().edges.len(), 1);
+
+    // New diagram: a second tab, empty.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::N);
+    h.run_steps(3);
+    assert_eq!(h.state().tab_count(), 2);
+    assert_eq!(h.state().active_tab(), 1);
+    assert!(h.state().document().edges.is_empty());
+    click(&mut h, 20.0, 0.0);
+    click(&mut h, 20.0, 40.0);
+    click(&mut h, 40.0, 0.0);
+    click(&mut h, 40.0, 40.0);
+    assert_eq!(h.state().document().edges.len(), 2);
+
+    // Back to the first tab and its own undo history.
+    h.state_mut().switch_tab(0);
+    h.run_steps(2);
+    assert_eq!(h.state().document().edges.len(), 1);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(2);
+    assert!(h.state().document().edges.is_empty());
+    h.state_mut().switch_tab(1);
+    h.run_steps(2);
+    assert_eq!(h.state().document().edges.len(), 2);
+    let titles = h.state().tab_titles();
+    assert_eq!(titles[0].0, "Untitled");
+    assert_eq!(titles[1].0, "Untitled 2");
+
+    // Closing a tab with changes asks first; the other tab is untouched.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::W);
+    h.run_steps(3);
+    assert_eq!(h.state().tab_count(), 2, "asks before closing");
+}
+
+#[test]
+fn right_click_menu_acts_on_the_clicked_object() {
+    let mut h = harness();
+    h.key_press(Key::B);
+    h.run_steps(2);
+    click(&mut h, 0.0, 0.0);
+    click(&mut h, 0.0, 40.0);
+    h.key_press(Key::S);
+    h.key_press(Key::Escape);
+    h.run_steps(2);
+    let p = pos(&h, 0.0, 20.0);
+    h.event(Event::PointerMoved(p));
+    h.step();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton {
+            pos: p,
+            button: PointerButton::Secondary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        });
+        h.step();
+    }
+    h.run_steps(2);
+    assert_eq!(
+        h.state().selected().len(),
+        1,
+        "right-click selected the line"
+    );
+    h.get_by(|n| n.label().is_some_and(|l| l.starts_with("Delete")))
+        .click();
+    h.run_steps(3);
+    assert!(h.state().document().edges.is_empty());
 }

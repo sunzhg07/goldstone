@@ -1,7 +1,6 @@
 //! Menus, commands bar, toolbox, tool controls, docked dialogs, palettes and
 //! status bar.
 
-use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
 use egui::{Color32, ComboBox, DragValue, Grid, RichText, ScrollArea, TextEdit, Ui};
@@ -16,7 +15,7 @@ use crate::app::{ACCENT, GoldstoneApp, Tab, Tool};
 use crate::doc_ops;
 use crate::keys::{self, Action, AlignOp, BINDINGS, MOUSE, Same};
 
-const STROKES: [(Stroke, &str); 6] = [
+pub(crate) const STROKES: [(Stroke, &str); 6] = [
     (Stroke::Plain, "plain"),
     (Stroke::Dashed, "dashed"),
     (Stroke::Dotted, "dotted"),
@@ -24,12 +23,12 @@ const STROKES: [(Stroke, &str); 6] = [
     (Stroke::Curly, "curly"),
     (Stroke::Zigzag, "zigzag"),
 ];
-const ARROWS: [(ArrowDir, &str); 3] = [
+pub(crate) const ARROWS: [(ArrowDir, &str); 3] = [
     (ArrowDir::None, "none"),
     (ArrowDir::Forward, "forward"),
     (ArrowDir::Backward, "backward"),
 ];
-const KINDS: [(VertexKind, &str); 6] = [
+pub(crate) const KINDS: [(VertexKind, &str); 6] = [
     (VertexKind::None, "none (invisible)"),
     (VertexKind::Dot, "dot"),
     (VertexKind::Cross, "cross ✕"),
@@ -78,7 +77,7 @@ const COMMANDS: &[Option<(&str, &str, Action)>] = &[
     Some(("align-left", "Align & Distribute", Action::ShowAlign)),
 ];
 
-const ALIGN: &[(&str, &str, AlignOp)] = &[
+pub(crate) const ALIGN: &[(&str, &str, AlignOp)] = &[
     ("align-left", "Align left edges", AlignOp::Left),
     (
         "align-center-x",
@@ -403,46 +402,36 @@ impl GoldstoneApp {
 
     pub(crate) fn menu_bar(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
-        let mut imgs: HashMap<&'static str, egui::Image<'static>> = HashMap::new();
-        for name in [
-            "group",
-            "ungroup",
-            "union",
-            "difference",
-            "intersection",
-            "exclusion",
-            "to-path",
-            "flip-h",
-            "flip-v",
-            "rotate-ccw",
-            "rotate-cw",
-            "align-left",
-        ] {
-            if let Some(i) = self.icon(&ctx, name, 16.0) {
-                imgs.insert(name, i);
-            }
-        }
-        let os = self.os;
+        let mut m = crate::menus::Items::new(
+            self,
+            &ctx,
+            &[
+                "group",
+                "ungroup",
+                "union",
+                "difference",
+                "intersection",
+                "exclusion",
+                "to-path",
+                "flip-h",
+                "flip-v",
+                "rotate-ccw",
+                "rotate-cw",
+                "align-left",
+            ],
+        );
         let (show_grid, show_rulers, show_ids) = (self.show_grid, self.show_rulers, self.show_ids);
-        let mut chosen: Option<Action> = None;
         let mut about = false;
         egui::MenuBar::new().ui(ui, |ui| {
             let mut item = |ui: &mut Ui, icon: Option<&str>, label: &str, a: Action| {
-                let sc = keys::shortcut(a, os);
-                let b = match icon.and_then(|i| imgs.get(i)) {
-                    Some(img) => egui::Button::image_and_text(img.clone(), label),
-                    None => egui::Button::new(label),
-                };
-                if ui.add(b.shortcut_text(sc)).clicked() {
-                    chosen = Some(a);
-                    ui.close();
-                }
+                m.item(ui, icon, label, a)
             };
             ui.menu_button("File", |ui| {
                 item(ui, None, "New", Action::New);
                 item(ui, None, "Open…", Action::Open);
                 item(ui, None, "Save", Action::Save);
                 item(ui, None, "Save As…", Action::SaveAs);
+                item(ui, None, "Close", Action::CloseTab);
                 ui.separator();
                 item(ui, None, "Export…", Action::Export);
                 ui.separator();
@@ -571,7 +560,7 @@ impl GoldstoneApp {
                 }
             });
         });
-        if let Some(a) = chosen {
+        if let Some(a) = m.chosen {
             self.do_action(a, &ctx);
         }
         self.show_about |= about;
@@ -615,13 +604,13 @@ impl GoldstoneApp {
                     Some(img) => egui::Button::selectable(self.tool == t, img),
                     None => egui::Button::selectable(self.tool == t, t.name()),
                 };
-                if ui
+                let r = ui
                     .add(b.min_size(egui::vec2(36.0, 36.0)))
-                    .on_hover_text(tip)
-                    .clicked()
-                {
+                    .on_hover_text(format!("{tip}\nRight-click: options"));
+                if r.clicked() {
                     self.set_tool(t);
                 }
+                r.context_menu(|ui| self.tool_menu(ui, t));
             }
         });
     }

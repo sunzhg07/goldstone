@@ -205,6 +205,7 @@ type TextureKey = (u64, [u64; 3], [u32; 2]);
 /// Undo history. Changes are committed when the user is not in the middle
 /// of an interaction (no button held, no text field focused), so a drag or
 /// typing a label is one undo step.
+#[derive(Default)]
 struct History {
     undo: Vec<Document>,
     redo: Vec<Document>,
@@ -264,9 +265,32 @@ impl History {
 /// An action waiting for "discard unsaved changes?".
 #[derive(Debug, Clone)]
 enum Pending {
-    New,
-    Open(Option<PathBuf>),
+    /// Close the active tab.
+    Close,
     Quit,
+}
+
+/// One open diagram (a tab). The active one lives in the
+/// `GoldstoneApp` fields; the others are kept here.
+#[derive(Default)]
+struct Page {
+    doc: Document,
+    file: Option<PathBuf>,
+    loaded_text: Option<String>,
+    saved_doc: Document,
+    history: History,
+    view: View,
+    view_fitted: bool,
+    selection: Selection,
+    source: SourceState,
+    /// "Untitled N" for a diagram without a file.
+    untitled: usize,
+}
+
+impl Page {
+    fn dirty(&self) -> bool {
+        self.doc != self.saved_doc
+    }
 }
 
 /// Diagram from LaTeX dialog.
@@ -292,6 +316,7 @@ impl Default for LatexDialog {
     }
 }
 
+#[derive(Default)]
 pub struct SourceState {
     pub text: String,
     pub for_doc: Option<Document>,
@@ -348,6 +373,12 @@ pub struct GoldstoneApp {
     /// Text delivered by the platform's paste shortcut.
     paste_text: Option<String>,
     pub(crate) hover: Option<ObjRef>,
+    /// All tabs; the entry of the active tab is a placeholder while its
+    /// state is in the fields above.
+    pages: Vec<Page>,
+    pub(crate) active: usize,
+    untitled: usize,
+    next_untitled: usize,
 }
 
 impl GoldstoneApp {
@@ -423,11 +454,164 @@ impl GoldstoneApp {
             clipboard: None,
             paste_text: None,
             hover: None,
+            pages: vec![Page::default()],
+            active: 0,
+            untitled: 1,
+            next_untitled: 2,
         };
         if let Some(p) = path {
-            app.load(&p);
+            app.open_path(&p);
         }
         app
+    }
+
+    /// Opens more files, each in its own tab.
+    pub fn open_paths(&mut self, paths: &[PathBuf]) {
+        for p in paths {
+            self.open_path(p);
+        }
+    }
+
+    // ---- tabs -----------------------------------------------------------------
+
+    /// Number of open tabs.
+    pub fn tab_count(&self) -> usize {
+        self.pages.len()
+    }
+
+    /// Index of the active tab.
+    pub fn active_tab(&self) -> usize {
+        self.active
+    }
+
+    /// Moves the active diagram's state out of the app fields.
+    fn take_page(&mut self) -> Page {
+        self.drag = None;
+        self.pending_edge = None;
+        self.arc_end = None;
+        self.hover = None;
+        self.rename = None;
+        Page {
+            doc: std::mem::take(&mut self.doc),
+            file: self.file.take(),
+            loaded_text: self.loaded_text.take(),
+            saved_doc: std::mem::take(&mut self.saved_doc),
+            history: std::mem::take(&mut self.history),
+            view: std::mem::take(&mut self.view),
+            view_fitted: self.view_fitted,
+            selection: std::mem::take(&mut self.selection),
+            source: std::mem::take(&mut self.source),
+            untitled: self.untitled,
+        }
+    }
+
+    fn put_page(&mut self, p: Page) {
+        self.doc = p.doc;
+        self.file = p.file;
+        self.loaded_text = p.loaded_text;
+        self.saved_doc = p.saved_doc;
+        self.history = p.history;
+        self.view = p.view;
+        self.view_fitted = p.view_fitted;
+        self.selection = p.selection;
+        self.source = p.source;
+        self.untitled = p.untitled;
+        // The canvas is rebuilt for the new document.
+        self.scene_for = None;
+        self.scene_errors.clear();
+        self.scene_version += 1;
+    }
+
+    /// Makes tab `i` the active one.
+    pub fn switch_tab(&mut self, i: usize) {
+        if i == self.active || i >= self.pages.len() {
+            return;
+        }
+        let cur = self.take_page();
+        self.pages[self.active] = cur;
+        let next = std::mem::take(&mut self.pages[i]);
+        self.active = i;
+        self.put_page(next);
+        self.sync_scene();
+    }
+
+    /// Opens a new tab with `doc` and makes it active.
+    fn new_tab(&mut self, doc: Document, file: Option<PathBuf>, text: Option<String>) {
+        let cur = self.take_page();
+        self.pages[self.active] = cur;
+        self.pages.push(Page::default());
+        self.active = self.pages.len() - 1;
+        self.put_page(Page::default());
+        self.untitled = if file.is_none() {
+            self.next_untitled += 1;
+            self.next_untitled - 1
+        } else {
+            0
+        };
+        self.reset_with(doc, file, text);
+    }
+
+    /// Closes the active tab without asking; the last tab becomes empty.
+    fn close_active(&mut self) {
+        if self.pages.len() == 1 {
+            self.reset_with(Document::default(), None, None);
+            self.untitled = 1;
+            self.next_untitled = 2;
+            return;
+        }
+        self.take_page();
+        self.pages.remove(self.active);
+        self.active = self.active.min(self.pages.len() - 1);
+        let next = std::mem::take(&mut self.pages[self.active]);
+        self.put_page(next);
+        self.sync_scene();
+    }
+
+    /// Closes tab `i`, asking first if it has unsaved changes.
+    pub fn close_tab(&mut self, i: usize, ctx: &egui::Context) {
+        self.switch_tab(i);
+        self.request(Pending::Close, ctx);
+    }
+
+    /// Tab titles with an unsaved-changes mark, in order.
+    pub fn tab_titles(&self) -> Vec<(String, bool)> {
+        (0..self.pages.len())
+            .map(|i| {
+                let (file, untitled, dirty) = if i == self.active {
+                    (&self.file, self.untitled, self.dirty())
+                } else {
+                    let p = &self.pages[i];
+                    (&p.file, p.untitled, p.dirty())
+                };
+                (page_name(file.as_deref(), untitled), dirty)
+            })
+            .collect()
+    }
+
+    /// Full path of tab `i`'s file.
+    pub(crate) fn tab_path(&self, i: usize) -> Option<&Path> {
+        if i == self.active {
+            self.file.as_deref()
+        } else {
+            self.pages.get(i)?.file.as_deref()
+        }
+    }
+
+    fn any_dirty(&self) -> Option<usize> {
+        if self.dirty() {
+            return Some(self.active);
+        }
+        self.pages
+            .iter()
+            .enumerate()
+            .find(|(i, p)| *i != self.active && p.dirty())
+            .map(|(i, _)| i)
+    }
+
+    /// Whether the active tab is an untouched empty diagram (a file opened
+    /// now replaces it instead of getting a tab of its own).
+    fn active_is_blank(&self) -> bool {
+        self.file.is_none() && !self.dirty() && self.doc == Document::default()
     }
 
     /// The document being edited.
@@ -471,7 +655,18 @@ impl GoldstoneApp {
         self.rename = None;
     }
 
-    pub(crate) fn load(&mut self, path: &Path) {
+    /// Opens a file in a tab: the tab already showing it, the blank
+    /// active tab, or a new one.
+    pub(crate) fn open_path(&mut self, path: &Path) {
+        let canon = |p: &Path| std::fs::canonicalize(p).ok();
+        if let Some(c) = canon(path)
+            && let Some(i) =
+                (0..self.pages.len()).find(|i| self.tab_path(*i).and_then(canon) == Some(c.clone()))
+        {
+            self.switch_tab(i);
+            self.message = Some(format!("{} is already open", path.display()));
+            return;
+        }
         let result = std::fs::read_to_string(path)
             .map_err(|e| e.to_string())
             .and_then(|text| {
@@ -495,7 +690,12 @@ impl GoldstoneApp {
                 } else {
                     Some(path.to_path_buf())
                 };
-                self.reset_with(doc, file, Some(src));
+                if self.active_is_blank() {
+                    self.untitled = if file.is_none() { self.untitled } else { 0 };
+                    self.reset_with(doc, file, Some(src));
+                } else {
+                    self.new_tab(doc, file, Some(src));
+                }
                 self.message = Some(format!("Opened {}", path.display()));
             }
             Err(e) => self.message = Some(format!("Cannot open {}: {e}", path.display())),
@@ -510,6 +710,7 @@ impl GoldstoneApp {
                 self.loaded_text = Some(text);
                 self.message = Some(format!("Saved {}", path.display()));
                 self.file = Some(path);
+                self.untitled = 0;
             }
             Err(e) => self.message = Some(format!("Cannot save {}: {e}", path.display())),
         }
@@ -591,30 +792,39 @@ impl GoldstoneApp {
         );
     }
 
+    /// Runs `p`, first asking about unsaved changes (for Quit: of each
+    /// tab in turn, which is shown while asking).
     fn request(&mut self, p: Pending, ctx: &egui::Context) {
-        if self.dirty() {
-            self.confirm = Some(p);
-        } else {
-            self.perform(p, ctx);
+        let dirty = match p {
+            Pending::Close => self.dirty().then_some(self.active),
+            Pending::Quit => self.any_dirty(),
+        };
+        match dirty {
+            Some(i) => {
+                self.switch_tab(i);
+                self.confirm = Some(p);
+            }
+            None => self.perform(p, ctx),
+        }
+    }
+
+    fn new_diagram(&mut self) {
+        self.new_tab(Document::default(), None, None);
+        self.message = Some("New diagram".into());
+    }
+
+    fn open_dialog(&mut self) {
+        if let Some(paths) = rfd::FileDialog::new()
+            .add_filter("Goldstone diagram", &["gold", "svg"])
+            .pick_files()
+        {
+            self.open_paths(&paths);
         }
     }
 
     fn perform(&mut self, p: Pending, ctx: &egui::Context) {
         match p {
-            Pending::New => {
-                self.reset_with(Document::default(), None, None);
-                self.message = Some("New diagram".into());
-            }
-            Pending::Open(path) => {
-                let path = path.or_else(|| {
-                    rfd::FileDialog::new()
-                        .add_filter("Goldstone diagram", &["gold", "svg"])
-                        .pick_file()
-                });
-                if let Some(p) = path {
-                    self.load(&p);
-                }
-            }
+            Pending::Close => self.close_active(),
             Pending::Quit => {
                 self.allow_close = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -855,8 +1065,13 @@ impl GoldstoneApp {
                 }
             }
             Action::ToggleGrid => self.show_grid = !self.show_grid,
-            Action::New => self.request(Pending::New, ctx),
-            Action::Open => self.request(Pending::Open(None), ctx),
+            Action::New => self.new_diagram(),
+            Action::Open => self.open_dialog(),
+            Action::CloseTab => self.request(Pending::Close, ctx),
+            Action::NextTab => self.switch_tab((self.active + 1) % self.pages.len()),
+            Action::PrevTab => {
+                self.switch_tab((self.active + self.pages.len() - 1) % self.pages.len())
+            }
             Action::Save => self.save(),
             Action::SaveAs => self.save_as(),
             Action::Export => self.export(),
@@ -1372,9 +1587,14 @@ impl GoldstoneApp {
             self.tool_input(ui, rect, &resp, mods);
         }
         if resp.secondary_clicked() {
-            self.pending_edge = None;
-            self.arc_end = None;
+            let drawing = self.pending_edge.take().is_some() | self.arc_end.take().is_some();
+            // Right-click on an object outside the selection selects it,
+            // so the menu acts on what was clicked (as in Inkscape).
+            if !drawing && let Some(o) = self.hover.filter(|o| !self.selection.contains(o)) {
+                self.selection = self.unit(o, false);
+            }
         }
+        resp.context_menu(|ui| self.canvas_menu(ui));
 
         self.sync_scene();
         self.paint(ui, rect);
@@ -2263,7 +2483,10 @@ impl GoldstoneApp {
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
-                ui.label("The diagram has unsaved changes.");
+                ui.label(format!(
+                    "{} has unsaved changes.",
+                    page_name(self.file.as_deref(), self.untitled)
+                ));
                 ui.horizontal(|ui| {
                     if ui.button("Save").clicked() {
                         choice = Some(0);
@@ -2281,12 +2504,20 @@ impl GoldstoneApp {
                 self.save();
                 self.confirm = None;
                 if !self.dirty() {
-                    self.perform(p, ctx);
+                    // Quit asks again for the next tab with changes.
+                    self.request(p, ctx);
                 }
             }
             Some(1) => {
                 self.confirm = None;
-                self.perform(p, ctx);
+                match p {
+                    Pending::Quit => {
+                        // Discard this tab's changes, then ask about the next.
+                        self.doc = self.saved_doc.clone();
+                        self.request(p, ctx);
+                    }
+                    Pending::Close => self.perform(p, ctx),
+                }
             }
             Some(2) => self.confirm = None,
             _ => {}
@@ -2294,11 +2525,7 @@ impl GoldstoneApp {
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
-        let name = self
-            .file
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map_or("Untitled".into(), |n| n.to_string_lossy().into_owned());
+        let name = page_name(self.file.as_deref(), self.untitled);
         let title = format!("{}{name} — Goldstone", if self.dirty() { "*" } else { "" });
         if title != self.title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -2359,15 +2586,21 @@ impl GoldstoneApp {
 impl eframe::App for GoldstoneApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        if ctx.input(|i| i.viewport().close_requested()) && self.dirty() && !self.allow_close {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.confirm = Some(Pending::Quit);
-        }
-        if let Some(path) =
-            ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf()))
+        if ctx.input(|i| i.viewport().close_requested())
+            && self.any_dirty().is_some()
+            && !self.allow_close
         {
-            self.request(Pending::Open(Some(path)), &ctx);
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.request(Pending::Quit, &ctx);
         }
+        let dropped: Vec<PathBuf> = ctx.input(|i| {
+            i.raw
+                .dropped_files
+                .iter()
+                .map(|f| f.path().to_path_buf())
+                .collect()
+        });
+        self.open_paths(&dropped);
         // egui moves keyboard focus between widgets with Tab and the arrow
         // keys; while no widget has focus those keys belong to the canvas.
         if ctx.memory(|m| m.focused().is_none()) {
@@ -2392,7 +2625,10 @@ impl eframe::App for GoldstoneApp {
             .show(ui, |ui| self.dialogs(ui));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ui, |ui| self.canvas(ui));
+            .show(ui, |ui| {
+                self.tab_bar(ui);
+                self.canvas(ui);
+            });
 
         self.confirm_dialog(&ctx);
         self.shortcuts_window(&ctx);
@@ -2406,5 +2642,14 @@ impl eframe::App for GoldstoneApp {
         }
         self.sync_scene();
         self.update_title(&ctx);
+    }
+}
+
+/// Name shown for a diagram: its file name, or "Untitled N".
+fn page_name(file: Option<&Path>, untitled: usize) -> String {
+    match file.and_then(|p| p.file_name()) {
+        Some(n) => n.to_string_lossy().into_owned(),
+        None if untitled > 1 => format!("Untitled {untitled}"),
+        None => "Untitled".into(),
     }
 }

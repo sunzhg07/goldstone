@@ -21,9 +21,10 @@ The layout follows Inkscape:
 | Menu bar (top) | File, Edit, View, Object, Path, Dialogs, Help |
 | Commands bar | Group, Ungroup; Union, Difference, Intersection, Exclusion, Object to Path; Flip, Rotate 90°; Align & Distribute |
 | Tool controls | Options of the active tool: class, stroke and arrow for new lines, vertex kind; for the Select tool the selection's X and Y (editable), W and H; grid on/off and spacing; ids on/off |
-| Toolbox (left) | Select, Edit, Line, Arc, Vertex, Cross, Text, Rectangle, Ellipse |
+| Toolbox (left) | Select, Edit, Line, Arc, Vertex, Cross, Text, Rectangle, Ellipse. Right-click a tool for its options |
 | Rulers | Along the top and left of the canvas, in pt (y up); the pointer is marked on both. Ctrl+R hides them |
-| Canvas (center) | The diagram on a white page (the export area) with an optional grid |
+| Tabs | One tab per open diagram, above the canvas; each keeps its own undo history, selection and zoom. `*` marks unsaved changes. Click to switch (Ctrl+Tab, Ctrl+PageDown/PageUp), middle-click or × to close (Ctrl+W), + for a new diagram |
+| Canvas (center) | The diagram on a white page (the export area) with an optional grid. Right-click for a menu: commands for the clicked object or the selection, all tools, the active tool's options, view |
 | Dialogs (right) | **Fill & Stroke**: properties of the selection. **Objects**: every object with its id and coordinates, and the groups; click to select. **Align**: Align & Distribute. **Source**: the `.gold` text, editable live |
 | Palettes (bottom) | Click a color to set the stroke color of the selection (Shift+click: fill). Click a stroke to set it on selected lines and on new lines; *double* toggles double lines |
 | Status bar | What is selected; the object under the pointer (or the one selected object) with its kind, id and coordinates; hints; errors; pointer position and zoom |
@@ -221,7 +222,11 @@ one step.
   `.tex` (a complete document cropped to the picture).
 - SVG exports contain their `.gold` source: open them in Goldstone to
   keep editing, or run `goldstone extract fig.svg`.
-- You can drop a `.gold` or Goldstone SVG file onto the window to open it.
+- **New** (Ctrl+N) and **Open** (Ctrl+O, several files at once) open
+  new tabs; a file that is already open is switched to. Dropping files
+  onto the window opens them too, and `goldstone a.gold b.gold` opens
+  both. **Close** (Ctrl+W) asks before discarding changes; Quit asks for
+  each tab with unsaved changes.
 
 The file format is described in [DESIGN.md §4](DESIGN.md#4-file-format-gold-toml).
 
@@ -338,6 +343,13 @@ dispatches keys from the same table, so this list is always accurate.
 | `Ctrl+N` | `⌘N` | New | same |
 | `Ctrl+O` | `⌘O` | Open (.gold, or an SVG made by Goldstone) | same |
 | `Ctrl+S` | `⌘S` | Save | same |
+| `Ctrl+W` | `⌘W` | Close the diagram (tab) | Goldstone only |
+| — | `⌃⇧⇥` | Previous tab | Goldstone only |
+| — | `⌃⇥` | Next tab | Goldstone only |
+| `Ctrl+Shift+Tab` | — | Previous tab | Goldstone only |
+| `Ctrl+Tab` | — | Next tab | Goldstone only |
+| `Ctrl+PageDown` | `⌘ PageDown` | Next tab | Goldstone only |
+| `Ctrl+PageUp` | `⌘ PageUp` | Previous tab | Goldstone only |
 | `Ctrl+Shift+T` | `⇧⌘T` | Diagram from LaTeX: draw a tensor expression such as E2 = V_ijab T_abij | Goldstone only |
 | `Ctrl+Q` | `⌘Q` | Quit | same |
 | `?` | `?` | Show keyboard shortcuts | Goldstone only |
@@ -346,6 +358,9 @@ dispatches keys from the same table, so this list is always accurate.
 
 | Where | Linux / Windows | macOS | Action | Inkscape |
 |---|---|---|---|---|
+| Any tool | Right-click on the canvas | Right-click on the canvas | Menu: commands for the selection (the clicked object is selected first), tools, tool options, view | same |
+| Toolbox | Right-click a tool | Right-click a tool | That tool's options (class, stroke, arrow, double line, vertex kind, grid) | Goldstone only |
+| Tabs | Click / middle-click / right-click a tab | Click / middle-click / right-click a tab | Switch to it / close it / menu | Goldstone only |
 | Select tool | Click | Click | Select only this object (a whole group if it is in one) | same |
 | Select tool | Shift+click | ⇧click | Add or remove this object (toggle) | same |
 | Select tool | Ctrl+click | ⌘click | Select one object inside a group | same |
@@ -370,5 +385,4 @@ dispatches keys from the same table, so this list is always accurate.
 | View | Scroll / Shift+scroll | Scroll / ⇧scroll | Pan vertically / horizontally | same |
 | View | Ctrl+scroll, or pinch | ⌘scroll, or pinch | Zoom around the pointer | same |
 | View | Middle-button drag, or Space+drag | Middle-button drag, or Space+drag | Pan | same |
-
 <!-- keys:end -->

@@ -118,6 +118,9 @@ pub enum Action {
     ToggleIds,
     New,
     Open,
+    CloseTab,
+    NextTab,
+    PrevTab,
     Save,
     SaveAs,
     Export,
@@ -213,6 +216,11 @@ const CMD: Modifiers = Modifiers::COMMAND;
 const CMD_SHIFT: Modifiers = Modifiers {
     shift: true,
     ..Modifiers::COMMAND
+};
+const CTRL: Modifiers = Modifiers::CTRL;
+const CTRL_SHIFT: Modifiers = Modifiers {
+    shift: true,
+    ..Modifiers::CTRL
 };
 const CMD_ALT: Modifiers = Modifiers {
     alt: true,
@@ -613,6 +621,32 @@ pub const BINDINGS: &[Binding] = &[
     ),
     b(CMD, Key::S, Action::Save, "Save", FILE),
     own(b(
+        CMD,
+        Key::W,
+        Action::CloseTab,
+        "Close the diagram (tab)",
+        FILE,
+    )),
+    // Next / previous tab: Ctrl+Tab everywhere (on macOS the Control key).
+    own(only(
+        b(CTRL_SHIFT, Key::Tab, Action::PrevTab, "Previous tab", FILE),
+        Only::Mac,
+    )),
+    own(only(
+        b(CTRL, Key::Tab, Action::NextTab, "Next tab", FILE),
+        Only::Mac,
+    )),
+    own(only(
+        b(CMD_SHIFT, Key::Tab, Action::PrevTab, "Previous tab", FILE),
+        Only::NotMac,
+    )),
+    own(only(
+        b(CMD, Key::Tab, Action::NextTab, "Next tab", FILE),
+        Only::NotMac,
+    )),
+    own(b(CMD, Key::PageDown, Action::NextTab, "Next tab", FILE)),
+    own(b(CMD, Key::PageUp, Action::PrevTab, "Previous tab", FILE)),
+    own(b(
         CMD_SHIFT,
         Key::T,
         Action::FromLatex,
@@ -710,6 +744,24 @@ pub fn matches(mods: Modifiers, key: Key, m: Modifiers, os: Os) -> bool {
 /// Mouse interactions, for the manual. `{cmd}`, `{alt}`, `{shift}` are
 /// written per platform. (Handled in the canvas code.)
 pub const MOUSE: &[(&str, &str, &str, bool)] = &[
+    (
+        "Any tool",
+        "Right-click on the canvas",
+        "Menu: commands for the selection (the clicked object is selected first), tools, tool options, view",
+        true,
+    ),
+    (
+        "Toolbox",
+        "Right-click a tool",
+        "That tool's options (class, stroke, arrow, double line, vertex kind, grid)",
+        false,
+    ),
+    (
+        "Tabs",
+        "Click / middle-click / right-click a tab",
+        "Switch to it / close it / menu",
+        false,
+    ),
     (
         "Select tool",
         "Click",

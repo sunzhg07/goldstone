@@ -4,6 +4,7 @@ pub mod app;
 mod doc_ops;
 pub mod icons;
 pub mod keys;
+mod menus;
 mod panels;
 mod view;
 
@@ -14,8 +15,8 @@ use std::path::PathBuf;
 /// `packaging/third_party_licenses.py`).
 pub const THIRD_PARTY_LICENSES: &str = include_str!("../../../THIRD_PARTY_LICENSES.md");
 
-/// Opens the editor window, optionally with a file.
-pub fn run(path: Option<PathBuf>) -> eframe::Result {
+/// Opens the editor window with these files, each in a tab.
+pub fn run(paths: Vec<PathBuf>) -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 820.0])
@@ -26,7 +27,11 @@ pub fn run(path: Option<PathBuf>) -> eframe::Result {
     eframe::run_native(
         "Goldstone",
         options,
-        Box::new(move |cc| Ok(Box::new(app::GoldstoneApp::new(cc, path)))),
+        Box::new(move |cc| {
+            let mut app = app::GoldstoneApp::new(cc, None);
+            app.open_paths(&paths);
+            Ok(Box::new(app))
+        }),
     )
 }
 
