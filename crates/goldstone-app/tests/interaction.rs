@@ -462,3 +462,36 @@ fn latex_tab_redraws_as_you_type() {
     assert_eq!(d.edges.len(), 12, "two terms now");
     assert_eq!(h.state().selected().len(), d.groups[0].members.len());
 }
+
+#[test]
+fn resize_handles_stretch_the_selection() {
+    let mut h = harness();
+    h.key_press(Key::R);
+    h.run_steps(2);
+    drag(&mut h, (0.0, 0.0), (40.0, 20.0));
+    h.key_press(Key::S);
+    h.run_steps(2);
+    let d = h.state().document();
+    assert_eq!(d.shapes.len(), 1);
+    assert_eq!(d.shapes[0].size, Some([40.0, 20.0]));
+    assert_eq!(h.state().selected().len(), 1, "the new shape is selected");
+    let handles = h.state().resize_handles();
+    assert_eq!(handles.len(), 8);
+    // Right side: stretch horizontally by 40 pt.
+    let (_, _, p) = *handles.iter().find(|(x, y, _)| (*x, *y) == (1, 0)).unwrap();
+    let to = p + (pos(&h, 40.0, 0.0) - pos(&h, 0.0, 0.0));
+    h.event(Event::PointerMoved(p));
+    h.step();
+    button(&mut h, p, true, Modifiers::NONE);
+    for i in 1..=8 {
+        h.event(Event::PointerMoved(p + (to - p) * (i as f32 / 8.0)));
+        h.step();
+    }
+    button(&mut h, to, false, Modifiers::NONE);
+    h.run_steps(2);
+    let s = &h.state().document().shapes[0];
+    let size = s.size.unwrap();
+    assert!((size[0] - 80.0).abs() < 1.5, "{size:?}");
+    assert_eq!(size[1], 20.0, "height unchanged");
+    assert!((s.at.unwrap()[0] - 40.0).abs() < 1.0, "left side stays");
+}

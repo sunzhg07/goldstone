@@ -259,6 +259,112 @@ pub fn rotate(doc: &mut Document, sel: &Selection, deg: f64) {
     transform(doc, sel, Affine::rotate_about(deg.to_radians(), c));
 }
 
+/// Scales the selection by `sx`, `sy` about `anchor` (negative factors
+/// mirror). With `widths`, line widths, loop sizes stay, text sizes and
+/// line widths are scaled by the geometric mean of the factors.
+pub fn scale(doc: &mut Document, sel: &Selection, anchor: Point, sx: f64, sy: f64, widths: bool) {
+    let a = Affine::translate(anchor.to_vec2())
+        * Affine::scale_non_uniform(sx, sy)
+        * Affine::translate(-anchor.to_vec2());
+    let f = (sx * sy).abs().sqrt();
+    let ap = |p: &mut [f64; 2]| {
+        let q = a * pt(*p);
+        *p = [round(q.x), round(q.y)];
+    };
+    let r2 = |x: f64| (x * 100.0).round() / 100.0;
+    let style_width = |doc: &Document, class: &Option<String>| {
+        class
+            .as_ref()
+            .and_then(|c| doc.styles.get(c))
+            .and_then(|s| s.width)
+    };
+    let moved = moved_vertices(doc, sel);
+    for &i in &moved {
+        ap(&mut doc.vertices[i].at);
+    }
+    for i in rigid_edges(doc, &moved) {
+        if sx * sy < 0.0 {
+            mirror_edge(doc, i);
+        }
+        let sw = style_width(doc, &doc.edges[i].class);
+        let e = &mut doc.edges[i];
+        if let Some(cs) = e.controls.as_mut() {
+            ap(&mut cs[0]);
+            ap(&mut cs[1]);
+        }
+        if e.from == e.to && (f - 1.0).abs() > 1e-9 {
+            let l = e.loop_.get_or_insert(LoopSpec {
+                radius: None,
+                angle: None,
+            });
+            l.radius = Some(r2(l.radius.unwrap_or(d::LOOP_RADIUS) * f));
+        }
+        if widths {
+            e.width = Some(r2(e.width.or(sw).unwrap_or(d::WIDTH) * f));
+        }
+    }
+    for r in sel {
+        match *r {
+            ObjRef::Text(i) => {
+                ap(&mut doc.texts[i].at);
+                if widths {
+                    let st = doc.texts[i]
+                        .class
+                        .as_ref()
+                        .and_then(|c| doc.styles.get(c))
+                        .and_then(|s| s.text_size);
+                    let t = &mut doc.texts[i];
+                    t.size = Some(r2(t.size.or(st).unwrap_or(d::TEXT_SIZE) * f));
+                }
+            }
+            ObjRef::Axes(i) => {
+                let ax = &mut doc.axes[i];
+                ap(&mut ax.origin);
+                for (axis, k) in [(&mut ax.x, sx.abs()), (&mut ax.y, sy.abs())] {
+                    let axis = axis.get_or_insert_with(Axis::default);
+                    axis.length = Some(r2(axis.length.unwrap_or(d::AXIS_LENGTH) * k));
+                    if let Some(t) = axis.tick_spacing.as_mut() {
+                        *t = r2(*t * k);
+                    }
+                }
+                if widths {
+                    ax.width = Some(r2(ax.width.unwrap_or(d::WIDTH) * f));
+                }
+            }
+            ObjRef::Shape(i) => {
+                let sw = style_width(doc, &doc.shapes[i].class);
+                let s = &mut doc.shapes[i];
+                shapes::scale(s, a, sx, sy);
+                if widths {
+                    s.width = Some(r2(s.width.or(sw).unwrap_or(d::WIDTH) * f));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// A mirrored edge bends the other way and keeps its label outside.
+fn mirror_edge(doc: &mut Document, i: usize) {
+    let side = doc.edges[i]
+        .label_side
+        .or_else(|| {
+            let c = doc.edges[i].class.as_ref()?;
+            doc.styles.get(c)?.label_side
+        })
+        .unwrap_or(Side::Left);
+    let e = &mut doc.edges[i];
+    if let Some(b) = e.bend.as_mut() {
+        *b = -*b;
+    }
+    if e.label.is_some() {
+        e.label_side = Some(match side {
+            Side::Left => Side::Right,
+            Side::Right => Side::Left,
+        });
+    }
+}
+
 /// Applies a rigid transform to the selection.
 pub fn transform(doc: &mut Document, sel: &Selection, a: Affine) {
     let reflect = a.determinant() < 0.0;
@@ -276,25 +382,10 @@ pub fn transform(doc: &mut Document, sel: &Selection, a: Affine) {
         ap(&mut doc.vertices[i].at);
     }
     for i in rigid_edges(doc, &moved) {
-        let side = doc.edges[i]
-            .label_side
-            .or_else(|| {
-                let c = doc.edges[i].class.as_ref()?;
-                doc.styles.get(c)?.label_side
-            })
-            .unwrap_or(Side::Left);
-        let e = &mut doc.edges[i];
         if reflect {
-            if let Some(b) = e.bend.as_mut() {
-                *b = -*b;
-            }
-            if e.label.is_some() {
-                e.label_side = Some(match side {
-                    Side::Left => Side::Right,
-                    Side::Right => Side::Left,
-                });
-            }
+            mirror_edge(doc, i);
         }
+        let e = &mut doc.edges[i];
         if let Some(cs) = e.controls.as_mut() {
             ap(&mut cs[0]);
             ap(&mut cs[1]);
@@ -1036,6 +1127,55 @@ mod tests {
         for (a, b) in d.vertices.iter().zip(&orig.vertices) {
             assert!((a.at[0] - b.at[0]).abs() < 0.05 && (a.at[1] - b.at[1]).abs() < 0.05);
         }
+        assert!(goldstone_core::scene::build(&d).is_ok());
+    }
+
+    #[test]
+    fn scale_stretches_and_restores() {
+        let mut d = doc();
+        let all = all_objects(&d);
+        let orig = d.clone();
+        let b0 = bounds(&selection_points(&d, &all)).unwrap();
+        scale(&mut d, &all, b0.origin(), 2.0, 0.5, false);
+        let b1 = bounds(&selection_points(&d, &all)).unwrap();
+        assert!((b1.width() - 2.0 * b0.width()).abs() < 0.1, "{b0:?} {b1:?}");
+        assert!((b1.height() - 0.5 * b0.height()).abs() < 0.1);
+        assert!(
+            (b1.x0 - b0.x0).abs() < 0.01 && (b1.y0 - b0.y0).abs() < 0.01,
+            "anchor stays"
+        );
+        assert!(goldstone_core::scene::build(&d).is_ok());
+        scale(&mut d, &all, b0.origin(), 0.5, 2.0, false);
+        for (a, b) in d.vertices.iter().zip(&orig.vertices) {
+            assert!((a.at[0] - b.at[0]).abs() < 0.05 && (a.at[1] - b.at[1]).abs() < 0.05);
+        }
+    }
+
+    #[test]
+    fn scale_shapes_and_widths() {
+        let mut d = Document::default();
+        d.shapes.push(new_shape(
+            ShapeKind::Box,
+            Point::new(0.0, 5.0),
+            Point::new(20.0, 15.0),
+        ));
+        d.shapes.push(new_shape(
+            ShapeKind::Ellipse,
+            Point::new(40.0, 5.0),
+            Point::new(60.0, 15.0),
+        ));
+        d.shapes[1].rotation = Some(30.0);
+        let sel: Selection = [ObjRef::Shape(0), ObjRef::Shape(1)].into();
+        scale(&mut d, &sel, Point::ZERO, 2.0, 3.0, true);
+        assert_eq!(d.shapes[0].kind, ShapeKind::Box);
+        assert_eq!(d.shapes[0].size, Some([40.0, 30.0]));
+        assert_eq!(d.shapes[0].at, Some([20.0, 30.0]));
+        assert_eq!(d.shapes[0].width, Some(2.45));
+        assert_eq!(
+            d.shapes[1].kind,
+            ShapeKind::Path,
+            "rotated ellipse becomes a path"
+        );
         assert!(goldstone_core::scene::build(&d).is_ok());
     }
 

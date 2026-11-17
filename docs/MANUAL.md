@@ -20,7 +20,7 @@ The layout follows Inkscape:
 |---|---|
 | Menu bar (top) | File, Edit, View, Object, Path, Dialogs, Help |
 | Commands bar | Group, Ungroup; Union, Difference, Intersection, Exclusion, Object to Path; Flip, Rotate 90°; Align & Distribute |
-| Tool controls | Options of the active tool: class, stroke and arrow for new lines, vertex kind; for the Select tool the selection's X and Y (editable), W and H; grid on/off and spacing; ids on/off |
+| Tool controls | Options of the active tool: class, stroke and arrow for new lines, vertex kind; for the Select tool the selection's X, Y, W and H (all editable; *lock* keeps W:H, *widths & text* also scales line widths and text); grid on/off and spacing; ids on/off |
 | Toolbox (left) | Select, Edit, Line, Arc, Vertex, Cross, Text, Rectangle, Ellipse. Right-click a tool for its options |
 | Rulers | Along the top and left of the canvas, in pt (y up); the pointer is marked on both. Ctrl+R hides them |
 | Tabs | One tab per open diagram, above the canvas; each keeps its own undo history, selection and zoom. `*` marks unsaved changes. Click to switch (Ctrl+Tab, Ctrl+PageDown/PageUp), middle-click or × to close (Ctrl+W), + for a new diagram |
@@ -392,6 +392,7 @@ dispatches keys from the same table, so this list is always accurate.
 
 | Where | Linux / Windows | macOS | Action | Inkscape |
 |---|---|---|---|---|
+| Select tool | Drag a handle of the selection box | Drag a handle of the selection box | Resize: corners scale, sides stretch; Ctrl+ keeps the proportions, Shift+ scales about the center. Line widths and text keep their size unless "widths & text" is on | same |
 | Any tool | Right-click on the canvas | Right-click on the canvas | Menu: commands for the selection (the clicked object is selected first), tools, tool options, view | same |
 | Toolbox | Right-click a tool | Right-click a tool | That tool's options (class, stroke, arrow, double line, vertex kind, grid) | Goldstone only |
 | Tabs | Click / middle-click / right-click a tab | Click / middle-click / right-click a tab | Switch to it / close it / menu | Goldstone only |

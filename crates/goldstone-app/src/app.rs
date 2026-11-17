@@ -199,6 +199,15 @@ enum Drag {
         start: Point,
         kind: ShapeKind,
     },
+    /// Resizing the selection with a handle of its box: `hx`, `hy` are
+    /// -1 (left/bottom), 0 or 1 (right/top).
+    Scale {
+        base: Document,
+        hx: i8,
+        hy: i8,
+        bounds: Rect,
+        press: Point,
+    },
 }
 
 /// What the canvas texture was rendered for: scene version, view, pixel size.
@@ -377,6 +386,10 @@ pub struct GoldstoneApp {
     /// Text delivered by the platform's paste shortcut.
     paste_text: Option<String>,
     pub(crate) hover: Option<ObjRef>,
+    /// Resizing also scales line widths and text sizes.
+    pub(crate) scale_widths: bool,
+    /// W and H in the tool controls change together.
+    pub(crate) lock_ratio: bool,
     /// All tabs; the entry of the active tab is a placeholder while its
     /// state is in the fields above.
     pages: Vec<Page>,
@@ -460,6 +473,8 @@ impl GoldstoneApp {
             clipboard: None,
             paste_text: None,
             hover: None,
+            scale_widths: false,
+            lock_ratio: false,
             pages: vec![Page::default()],
             active: 0,
             untitled: 1,
@@ -633,6 +648,11 @@ impl GoldstoneApp {
     /// The `.gold` text of the last copy, if any.
     pub fn clipboard_text(&self) -> Option<&str> {
         self.clipboard.as_deref()
+    }
+
+    /// Screen positions of the selection's resize handles (for tests).
+    pub fn resize_handles(&self) -> Vec<(i8, i8, Pos2)> {
+        self.scale_handles(self.canvas_rect)
     }
 
     /// Screen position of a document point on the canvas (for tests).
@@ -875,6 +895,110 @@ impl GoldstoneApp {
             .filter(|(o, _)| self.selection.contains(o))
             .map(|(_, r)| *r)
             .reduce(|a, b| a.union(b))
+    }
+
+    /// Resize handles of the selection box (Select tool), in screen
+    /// coordinates: (hx, hy, position).
+    fn scale_handles(&self, rect: egui::Rect) -> Vec<(i8, i8, Pos2)> {
+        if self.tool != Tool::Select || matches!(self.drag, Some(Drag::Move { .. })) {
+            return Vec::new();
+        }
+        let Some(b) = self.selection_bounds() else {
+            return Vec::new();
+        };
+        let a = self.view.to_screen(rect, Point::new(b.x0, b.y1));
+        let c = self.view.to_screen(rect, Point::new(b.x1, b.y0));
+        let r = egui::Rect::from_two_pos(a, c).expand(6.0);
+        let (wide, tall) = (b.width() > 1e-6, b.height() > 1e-6);
+        let mut out = Vec::new();
+        for hx in -1i8..=1 {
+            for hy in -1i8..=1 {
+                if (hx, hy) == (0, 0) || (hx != 0 && !wide) || (hy != 0 && !tall) {
+                    continue;
+                }
+                let x = match hx {
+                    -1 => r.left(),
+                    0 => r.center().x,
+                    _ => r.right(),
+                };
+                let y = match hy {
+                    -1 => r.bottom(),
+                    0 => r.center().y,
+                    _ => r.top(),
+                };
+                out.push((hx, hy, Pos2::new(x, y)));
+            }
+        }
+        out
+    }
+
+    fn scale_handle_at(&self, rect: egui::Rect, s: Pos2) -> Option<(i8, i8)> {
+        self.scale_handles(rect)
+            .into_iter()
+            .find(|(_, _, p)| (p.x - s.x).abs() <= 6.0 && (p.y - s.y).abs() <= 6.0)
+            .map(|(hx, hy, _)| (hx, hy))
+    }
+
+    /// Scales the selection base by dragging handle (hx, hy) by `d`.
+    #[allow(clippy::too_many_arguments)]
+    fn apply_scale(
+        &mut self,
+        base: &Document,
+        hx: i8,
+        hy: i8,
+        b: Rect,
+        d: Vec2,
+        center: bool,
+        keep: bool,
+    ) {
+        let grow = if center { 2.0 } else { 1.0 };
+        let factor = |h: i8, len: f64, delta: f64| {
+            if h == 0 || len < 1e-9 {
+                1.0
+            } else {
+                (len + grow * h as f64 * delta) / len
+            }
+        };
+        let mut sx = factor(hx, b.width(), d.x);
+        let mut sy = factor(hy, b.height(), d.y);
+        if keep {
+            if hx != 0 && hy != 0 {
+                let m = sx.abs().max(sy.abs());
+                sx = m.copysign(sx);
+                sy = m.copysign(sy);
+            } else if hx != 0 {
+                sy = sx.abs();
+            } else {
+                sx = sy.abs();
+            }
+        }
+        let clamp = |v: f64| {
+            if v.abs() < 0.01 {
+                0.01f64.copysign(v)
+            } else {
+                v
+            }
+        };
+        let (sx, sy) = (clamp(sx), clamp(sy));
+        let pick = |h: i8, lo: f64, hi: f64| match (center, h) {
+            (true, _) | (_, 0) => (lo + hi) / 2.0,
+            (_, 1) => lo,
+            _ => hi,
+        };
+        let anchor = Point::new(pick(hx, b.x0, b.x1), pick(hy, b.y0, b.y1));
+        let mut doc = base.clone();
+        doc_ops::scale(&mut doc, &self.selection, anchor, sx, sy, self.scale_widths);
+        self.doc = doc;
+        self.message = Some(format!(
+            "Scale {:.0}% × {:.0}%{}",
+            sx * 100.0,
+            sy * 100.0,
+            if self.scale_widths {
+                " (with line widths and text)"
+            } else {
+                ""
+            }
+        ));
     }
 
     pub(crate) fn grid(&self) -> f64 {
@@ -1587,6 +1711,20 @@ impl GoldstoneApp {
         });
         let space = space && !ui.ctx().egui_wants_keyboard_input();
         let hover = resp.hover_pos();
+        let scaling = match &self.drag {
+            Some(Drag::Scale { hx, hy, .. }) => Some((*hx, *hy)),
+            _ => None,
+        };
+        if let Some((hx, hy)) =
+            scaling.or_else(|| hover.and_then(|h| self.scale_handle_at(rect, h)))
+        {
+            ui.ctx().set_cursor_icon(match (hx, hy) {
+                (0, _) => egui::CursorIcon::ResizeVertical,
+                (_, 0) => egui::CursorIcon::ResizeHorizontal,
+                (1, 1) | (-1, -1) => egui::CursorIcon::ResizeNeSw,
+                _ => egui::CursorIcon::ResizeNwSe,
+            });
+        }
         self.pointer_doc = hover.map(|h| self.view.to_doc(rect, h));
         self.hover = self.pointer_doc.and_then(|p| self.hit(p));
 
@@ -1731,7 +1869,16 @@ impl GoldstoneApp {
                     } else {
                         None
                     };
-                    if let (Some(kind), Some(edge)) = (handle, self.selected_edge()) {
+                    let scale = self.scale_handle_at(rect, self.view.to_screen(rect, p));
+                    if let (Some((hx, hy)), Some(bounds)) = (scale, self.selection_bounds()) {
+                        Some(Drag::Scale {
+                            base: self.doc.clone(),
+                            hx,
+                            hy,
+                            bounds,
+                            press: p,
+                        })
+                    } else if let (Some(kind), Some(edge)) = (handle, self.selected_edge()) {
                         Some(Drag::Handle {
                             base: self.doc.clone(),
                             edge,
@@ -1824,6 +1971,22 @@ impl GoldstoneApp {
                 Some(Drag::Handle { base, edge, kind }) => {
                     self.apply_handle(&base, edge, kind, p, ctrl, shift);
                     self.drag = Some(Drag::Handle { base, edge, kind });
+                }
+                Some(Drag::Scale {
+                    base,
+                    hx,
+                    hy,
+                    bounds,
+                    press,
+                }) => {
+                    self.apply_scale(&base, hx, hy, bounds, p - press, shift, ctrl);
+                    self.drag = Some(Drag::Scale {
+                        base,
+                        hx,
+                        hy,
+                        bounds,
+                        press,
+                    });
                 }
                 Some(Drag::Touch { mut points, add }) => {
                     let s = self.view.to_screen(rect, p);
@@ -2150,6 +2313,19 @@ impl GoldstoneApp {
                 5.0,
                 4.0,
             ));
+        }
+
+        // Resize handles of the selection box.
+        for (hx, hy, c) in self.scale_handles(rect) {
+            let r = if hx != 0 && hy != 0 {
+                egui::Rect::from_center_size(c, egui::vec2(8.0, 8.0))
+            } else if hx != 0 {
+                egui::Rect::from_center_size(c, egui::vec2(5.0, 10.0))
+            } else {
+                egui::Rect::from_center_size(c, egui::vec2(10.0, 5.0))
+            };
+            painter.rect_filled(r, 1.0, Color32::WHITE);
+            painter.rect_stroke(r, 1.0, EStroke::new(1.2, ACCENT), StrokeKind::Inside);
         }
 
         // Edit-tool handles.

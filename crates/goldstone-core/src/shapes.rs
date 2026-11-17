@@ -174,6 +174,47 @@ pub fn transform(s: &mut Shape, a: Affine) {
     }
 }
 
+/// Scales a shape by `a` (a scaling about some point: `sx`, `sy` along x
+/// and y). Boxes and ellipses stay boxes and ellipses when their rotation
+/// is a multiple of 90°; otherwise they become paths.
+pub fn scale(s: &mut Shape, a: Affine, sx: f64, sy: f64) {
+    let rot = s.rotation.unwrap_or(0.0).rem_euclid(180.0);
+    match s.kind {
+        ShapeKind::Box | ShapeKind::Ellipse if rot.abs() < 1e-9 || (rot - 90.0).abs() < 1e-9 => {
+            let (fx, fy) = if rot.abs() < 1e-9 { (sx, sy) } else { (sy, sx) };
+            if let Some(at) = s.at.as_mut() {
+                *at = round_pt(a * pt(*at));
+            }
+            if let Some([w, h]) = s.size.as_mut() {
+                *w = ((*w * fx.abs()) * 100.0).round() / 100.0;
+                *h = ((*h * fy.abs()) * 100.0).round() / 100.0;
+            }
+        }
+        ShapeKind::Polygon => {
+            let Ok(o) = outline_raw(s) else { return };
+            s.points = Some(
+                o.elements()
+                    .iter()
+                    .filter_map(|el| match el {
+                        PathEl::MoveTo(p) | PathEl::LineTo(p) => Some(round_pt(a * *p)),
+                        _ => None,
+                    })
+                    .collect(),
+            );
+            s.rotation = None;
+        }
+        _ => {
+            let Ok(o) = outline_raw(s) else { return };
+            s.kind = ShapeKind::Path;
+            s.d = Some(format_d(&(a * o)));
+            s.at = None;
+            s.size = None;
+            s.points = None;
+            s.rotation = None;
+        }
+    }
+}
+
 /// Turns any shape into a `kind = "path"` shape with the same outline.
 pub fn to_path(s: &mut Shape) -> Result<(), String> {
     let o = outline(s)?;

@@ -319,6 +319,28 @@ fn reposition(doc: &mut DocumentMut) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn latex_and_plot_sources_survive_saving() {
+        let mut d = crate::expr::from_latex_editable(r"E2 = \frac{1}{4} V_{ijab} T_{abij}")
+            .unwrap()
+            .doc;
+        let p = crate::plot::from_source(&crate::model::PlotSource::default()).unwrap();
+        d.groups.extend(p.doc.groups.clone());
+        let text = save(&d, None);
+        let back = parse(&text).unwrap();
+        assert_eq!(
+            back.groups[0].latex.as_deref(),
+            Some(r"E2 = \frac{1}{4} V_{ijab} T_{abij}")
+        );
+        assert_eq!(
+            back.groups[1].plot,
+            Some(crate::model::PlotSource::default())
+        );
+        // Saving over a hand-written file keeps them too.
+        let again = save(&back, Some(&text));
+        assert_eq!(parse(&again).unwrap(), back);
+    }
     use crate::model::{ArrowDir, Vertex};
 
     const EXAMPLE: &str = include_str!("../../../examples/mbpt2.gold");

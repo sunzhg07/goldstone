@@ -747,6 +747,12 @@ pub fn matches(mods: Modifiers, key: Key, m: Modifiers, os: Os) -> bool {
 /// written per platform. (Handled in the canvas code.)
 pub const MOUSE: &[(&str, &str, &str, bool)] = &[
     (
+        "Select tool",
+        "Drag a handle of the selection box",
+        "Resize: corners scale, sides stretch; {cmd} keeps the proportions, {shift} scales about the center. Line widths and text keep their size unless \"widths & text\" is on",
+        true,
+    ),
+    (
         "Any tool",
         "Right-click on the canvas",
         "Menu: commands for the selection (the clicked object is selected first), tools, tool options, view",

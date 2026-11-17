@@ -722,10 +722,50 @@ impl GoldstoneApp {
                                 Vec2::new(x - b.x0, y - b.y0),
                             );
                         }
-                        ui.label(format!("W {}  H {} pt", trim(b.width()), trim(b.height())))
-                            .on_hover_text(
-                                "X, Y: lower-left corner of the selection's vertices and anchor points, in pt (y up)",
+                        ui.label("pt").on_hover_text(
+                            "X, Y: lower-left corner of the selection's vertices and anchor points, in pt (y up)",
+                        );
+                        // W, H: resize about the lower-left corner.
+                        let (w0, h0) = (b.width(), b.height());
+                        let (mut w, mut h) = (w0, h0);
+                        let lw = ui.label("W").id;
+                        let rw = ui
+                            .add_enabled(
+                                w0 > 1e-6,
+                                DragValue::new(&mut w).speed(0.5).range(0.1..=1e5).max_decimals(2),
+                            )
+                            .labelled_by(lw);
+                        ui.toggle_value(&mut self.lock_ratio, "lock")
+                            .on_hover_text("W and H change together");
+                        let lh = ui.label("H").id;
+                        let rh = ui
+                            .add_enabled(
+                                h0 > 1e-6,
+                                DragValue::new(&mut h).speed(0.5).range(0.1..=1e5).max_decimals(2),
+                            )
+                            .labelled_by(lh);
+                        if rw.changed() || rh.changed() {
+                            let mut sx = if w0 > 1e-6 { w / w0 } else { 1.0 };
+                            let mut sy = if h0 > 1e-6 { h / h0 } else { 1.0 };
+                            if self.lock_ratio {
+                                if rw.changed() {
+                                    sy = sx;
+                                } else {
+                                    sx = sy;
+                                }
+                            }
+                            doc_ops::scale(
+                                &mut self.doc,
+                                &self.selection,
+                                b.origin(),
+                                sx,
+                                sy,
+                                self.scale_widths,
                             );
+                        }
+                        ui.checkbox(&mut self.scale_widths, "widths & text").on_hover_text(
+                            "Resizing also scales line widths and text sizes",
+                        );
                     }
                 }
                 Tool::Rect | Tool::Ellipse => {
