@@ -148,7 +148,11 @@ fn thumbnail(
 impl GoldstoneApp {
     fn user_templates(&mut self) -> &[UserTemplate] {
         if self.templates.user.is_none() {
-            self.templates.user = Some(user_dir().map(|d| read_user(&d)).unwrap_or_default());
+            self.templates.user = Some(if crate::platform::WEB {
+                web::read()
+            } else {
+                user_dir().map(|d| read_user(&d)).unwrap_or_default()
+            });
         }
         self.templates.user.as_deref().unwrap_or_default()
     }
@@ -183,7 +187,7 @@ impl GoldstoneApp {
             self.start_add_template();
             ui.close();
         }
-        if ui.button(t("Open Templates Folder")).clicked() {
+        if !crate::platform::WEB && ui.button(t("Open Templates Folder")).clicked() {
             self.open_templates_folder();
             ui.close();
         }
@@ -252,6 +256,17 @@ impl GoldstoneApp {
     }
 
     fn save_template(&mut self, name: &str, category: &str) -> Result<PathBuf, String> {
+        if crate::platform::WEB {
+            let part = doc_ops::extract(&self.doc, &self.selection);
+            let cat = if category.trim().is_empty() {
+                MINE
+            } else {
+                category.trim()
+            };
+            web::save(cat, name.trim(), &goldstone_core::io::to_toml(&part))?;
+            self.templates.user = None;
+            return Ok(PathBuf::from(format!("{cat}/{}", name.trim())));
+        }
         let dir = user_dir().ok_or("no settings folder on this system")?;
         let name = file_safe(name);
         if name.is_empty() {
@@ -327,7 +342,9 @@ impl GoldstoneApp {
                         });
                         ui.end_row();
                     });
-                if let Some(dir) = user_dir() {
+                if crate::platform::WEB {
+                    ui.weak(t("Kept in this browser's storage."));
+                } else if let Some(dir) = user_dir() {
                     ui.weak(crate::i18n::tr(&format!(
                         "Saved as a .gold file in {}",
                         dir.display()
@@ -517,7 +534,13 @@ impl GoldstoneApp {
             }
         }
         if let Some(p) = delete {
-            match std::fs::remove_file(&p) {
+            let removed = if crate::platform::WEB {
+                web::delete(&p);
+                Ok(())
+            } else {
+                std::fs::remove_file(&p)
+            };
+            match removed {
                 Ok(()) => self.message = Some(format!("Deleted template {}", p.display())),
                 Err(e) => self.message = Some(format!("{}: {e}", p.display())),
             }
@@ -525,6 +548,72 @@ impl GoldstoneApp {
             self.templates.thumbs.retain(|k, _| !k.starts_with("u/"));
         }
         self.templates.browse = open;
+    }
+}
+
+/// Web: the user's templates in the browser's local storage, as JSON
+/// `[{"category", "name", "text"}]`. The "path" of one is `web/<category>/<name>`.
+mod web {
+    use super::*;
+
+    const KEY: &str = "goldstone.templates";
+
+    fn all() -> Vec<serde_json::Value> {
+        crate::platform::get(KEY)
+            .and_then(|s| serde_json::from_str::<Vec<serde_json::Value>>(&s).ok())
+            .unwrap_or_default()
+    }
+
+    fn store(v: &[serde_json::Value]) {
+        crate::platform::set(KEY, &serde_json::to_string(v).unwrap_or_default());
+    }
+
+    fn path(cat: &str, name: &str) -> PathBuf {
+        PathBuf::from(format!("web/{cat}/{name}"))
+    }
+
+    pub fn read() -> Vec<UserTemplate> {
+        all()
+            .iter()
+            .filter_map(|v| {
+                let s = |k: &str| v.get(k)?.as_str().map(str::to_string);
+                let (category, name, text) = (s("category")?, s("name")?, s("text")?);
+                let doc = goldstone_core::io::parse(&text).ok()?;
+                Some(UserTemplate {
+                    path: path(&category, &name),
+                    category,
+                    name,
+                    doc,
+                })
+            })
+            .collect()
+    }
+
+    pub fn save(category: &str, name: &str, text: &str) -> Result<(), String> {
+        if name.is_empty() {
+            return Err("give the template a name".into());
+        }
+        let mut v = all();
+        v.retain(|t| {
+            !(t.get("category").and_then(|c| c.as_str()) == Some(category)
+                && t.get("name").and_then(|c| c.as_str()) == Some(name))
+        });
+        v.push(serde_json::json!({ "category": category, "name": name, "text": text }));
+        store(&v);
+        Ok(())
+    }
+
+    pub fn delete(p: &Path) {
+        let mut v = all();
+        v.retain(|t| {
+            let c = t
+                .get("category")
+                .and_then(|c| c.as_str())
+                .unwrap_or_default();
+            let n = t.get("name").and_then(|c| c.as_str()).unwrap_or_default();
+            path(c, n) != p
+        });
+        store(&v);
     }
 }
 

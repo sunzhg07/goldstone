@@ -439,8 +439,10 @@ impl GoldstoneApp {
                 item(ui, None, "Close", Action::CloseTab);
                 ui.separator();
                 item(ui, None, "Export…", Action::Export);
-                ui.separator();
-                item(ui, None, "Quit", Action::Quit);
+                if !crate::platform::WEB {
+                    ui.separator();
+                    item(ui, None, "Quit", Action::Quit);
+                }
             });
             ui.menu_button(t("Insert"), |ui| {
                 item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
@@ -576,7 +578,9 @@ impl GoldstoneApp {
             });
             ui.menu_button(t("Help"), |ui| {
                 item(ui, None, "Keyboard and Mouse", Action::Shortcuts);
-                item(ui, None, "Check for Updates…", Action::CheckUpdates);
+                if !crate::platform::WEB {
+                    item(ui, None, "Check for Updates…", Action::CheckUpdates);
+                }
                 if ui.button(t("About Goldstone")).clicked() {
                     about = true;
                     ui.close();
@@ -2245,6 +2249,39 @@ impl GoldstoneApp {
             self.insert_latex(replace);
         }
         self.latex.open = open && action.is_none_or(|_| self.latex.status.is_err());
+    }
+
+    /// Web: Export downloads the drawing in a format chosen here.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn export_window(&mut self, ctx: &egui::Context) {
+        if !self.show_export {
+            return;
+        }
+        let mut open = true;
+        let mut chosen = None;
+        egui::Window::new(t("Export"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(t("Download the drawing as:"));
+                for (ext, what) in [
+                    ("pdf", "PDF (vector)"),
+                    ("svg", "SVG (vector, reopenable in Goldstone)"),
+                    ("png", "PNG (300 dpi)"),
+                    ("tikz", "TikZ picture (\\input into a paper)"),
+                    ("tex", "LaTeX document"),
+                ] {
+                    if ui.button(t(what)).clicked() {
+                        chosen = Some(ext);
+                    }
+                }
+            });
+        if let Some(ext) = chosen {
+            self.export_download(ext);
+            open = false;
+        }
+        self.show_export = open;
     }
 
     pub(crate) fn about_window(&mut self, ctx: &egui::Context) {

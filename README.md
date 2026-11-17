@@ -11,6 +11,10 @@ Modern without a TeX installation.
 **Download:** [Releases](https://github.com/sunzhg07/goldstone/releases) —
 macOS `.dmg`, Windows `.zip`, Linux `.AppImage` / `.deb` / `.tar.gz`.
 
+**In the browser:** [sunzhg07.github.io/goldstone](https://sunzhg07.github.io/goldstone/)
+— the same editor, nothing to install (WebAssembly; Chrome, Edge,
+Firefox, Safari).
+
 ## From LaTeX to diagram
 
 ```sh
@@ -215,6 +219,11 @@ goldstone keys                               # keyboard and mouse reference
 cargo build --release          # binary: target/release/goldstone
 cargo test --workspace
 ```
+
+The web version: `cd crates/goldstone-web && trunk serve` (needs
+`rustup target add wasm32-unknown-unknown` and
+[trunk](https://trunkrs.dev)); GitHub Actions publishes it to GitHub Pages
+on every push to `main`.
 
 Release packages are built by GitHub Actions
 ([`.github/workflows/release.yml`](.github/workflows/release.yml)) when a

@@ -305,6 +305,23 @@ the system language. Chinese text uses the system's Chinese font
 or WenQuanYi on Linux; install `fonts-noto-cjk` if none is found).
 Diagram labels are not affected: they are typeset from your LaTeX.
 
+## The web version
+
+[sunzhg07.github.io/goldstone](https://sunzhg07.github.io/goldstone/) runs
+the same editor in the browser (WebAssembly). The differences:
+
+- **Open** uses the browser's file picker (or drop files on the page);
+  **Save** and **Export** download the file (Export asks for the format).
+- Your templates and the language are kept in the browser's storage.
+- The color picker uses the browser's eyedropper (Chrome and Edge).
+- Closing the page with unsaved changes asks first. There is no Quit and
+  no Check for Updates: the page is always the latest version.
+- Browsers keep some shortcuts for themselves (Ctrl/⌘+N, W, T, Q, Tab);
+  use the menus or the tab bar for those.
+- The first visit downloads about 18 MB (the program and the LaTeX label
+  fonts); later visits use the browser's cache. Chinese loads its font
+  (8 MB) when you switch to it.
+
 ## Updates
 
 **Help ▸ Check for Updates…** asks GitHub for the latest release (only

@@ -83,7 +83,46 @@ impl Picker {
         });
     }
 
-    #[cfg(not(any(unix, windows)))]
+    /// Web: the browser's EyeDropper (Chrome, Edge).
+    #[cfg(target_arch = "wasm32")]
+    fn start_platform(&mut self, ctx: egui::Context, tx: Sender<Picked>) {
+        use wasm_bindgen::JsCast;
+        wasm_bindgen_futures::spawn_local(async move {
+            let r = async {
+                let window = web_sys::window().ok_or("no window")?;
+                let class = js_sys::Reflect::get(&window, &"EyeDropper".into())
+                    .ok()
+                    .filter(|c| !c.is_undefined())
+                    .ok_or("this browser has no screen color picker (use Chrome or Edge)")?;
+                let class: js_sys::Function = class.dyn_into().map_err(|_| "no EyeDropper")?;
+                let dropper = js_sys::Reflect::construct(&class, &js_sys::Array::new())
+                    .map_err(|e| format!("{e:?}"))?;
+                let open: js_sys::Function = js_sys::Reflect::get(&dropper, &"open".into())
+                    .map_err(|e| format!("{e:?}"))?
+                    .dyn_into()
+                    .map_err(|_| "no open()")?;
+                let promise: js_sys::Promise = open
+                    .call0(&dropper)
+                    .map_err(|e| format!("{e:?}"))?
+                    .dyn_into()
+                    .map_err(|_| "no promise")?;
+                let result = wasm_bindgen_futures::JsFuture::from(promise)
+                    .await
+                    .map_err(|_| "cancelled".to_string())?;
+                let hex = js_sys::Reflect::get(&result, &"sRGBHex".into())
+                    .ok()
+                    .and_then(|h| h.as_string())
+                    .ok_or("no color")?;
+                let c = goldstone_core::color::Color::parse(&hex).map_err(|e| e.to_string())?;
+                Ok::<_, String>([c.r, c.g, c.b])
+            }
+            .await;
+            let _ = tx.send(r);
+            ctx.request_repaint();
+        });
+    }
+
+    #[cfg(not(any(unix, windows, target_arch = "wasm32")))]
     fn start_platform(&mut self, _ctx: egui::Context, tx: Sender<Picked>) {
         let _ = tx.send(Err("not available on this system".into()));
     }

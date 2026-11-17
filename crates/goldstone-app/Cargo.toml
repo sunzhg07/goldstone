@@ -29,3 +29,11 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse"] }
+
+# The web version (WebAssembly in the browser).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+eframe = { version = "0.37", features = ["glow"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlAnchorElement", "HtmlCanvasElement", "Blob", "BlobPropertyBag", "Url", "Storage", "Navigator", "Response", "BeforeUnloadEvent", "Event"] }

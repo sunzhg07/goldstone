@@ -1,8 +1,16 @@
 [workspace]
 resolver = "3"
-members = ["crates/goldstone-core", "crates/goldstone-export", "crates/goldstone-cli", "crates/goldstone-app"]
+members = ["crates/goldstone-core", "crates/goldstone-export", "crates/goldstone-cli", "crates/goldstone-app", "crates/goldstone-web"]
 
 [workspace.package]
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
+
+# The web version: smaller WebAssembly (trunk build --cargo-profile web-release).
+[profile.web-release]
+inherits = "release"
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = true

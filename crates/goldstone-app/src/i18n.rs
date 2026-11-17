@@ -127,6 +127,7 @@ fn match_template(template: &str, s: &str) -> Option<Vec<String>> {
 
 // ---- settings and fonts ----------------------------------------------------
 
+#[allow(dead_code)]
 fn settings_file() -> Option<PathBuf> {
     Some(
         crate::templates_ui::user_dir()?
@@ -137,6 +138,14 @@ fn settings_file() -> Option<PathBuf> {
 
 /// The saved language, else the system's.
 pub fn initial() -> Lang {
+    #[cfg(target_arch = "wasm32")]
+    {
+        return crate::platform::get("goldstone.language")
+            .and_then(|l| Lang::from_code(&l))
+            .or_else(|| crate::platform::language().and_then(|l| Lang::from_code(&l)))
+            .unwrap_or(Lang::En);
+    }
+    #[allow(unreachable_code)]
     if let Some(f) = settings_file()
         && let Ok(text) = std::fs::read_to_string(f)
         && let Ok(v) = text.parse::<toml::Table>()
@@ -171,6 +180,10 @@ fn system() -> Option<Lang> {
 }
 
 pub fn save(l: Lang) {
+    if crate::platform::WEB {
+        crate::platform::set("goldstone.language", l.code());
+        return;
+    }
     if let Some(f) = settings_file() {
         let mut v: toml::Table = std::fs::read_to_string(&f)
             .ok()
@@ -184,7 +197,25 @@ pub fn save(l: Lang) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    /// Web: the Chinese font, fetched from the site when first needed.
+    static WEB_CJK: std::cell::RefCell<Option<Vec<u8>>> = const { std::cell::RefCell::new(None) };
+    static WEB_CJK_FETCHING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Web: where the site keeps the Chinese font (OFL, see THIRD_PARTY_LICENSES).
+#[cfg(target_arch = "wasm32")]
+const WEB_CJK_URL: &str = "fonts/NotoSansSC-Regular.otf";
+
+/// Web: the Chinese font, if fetched.
+#[cfg(target_arch = "wasm32")]
+pub fn cjk_font() -> Option<(Vec<u8>, u32)> {
+    WEB_CJK.with(|c| c.borrow().clone()).map(|b| (b, 0))
+}
+
 /// A system font with Chinese characters: (bytes, index in a collection).
+#[cfg(not(target_arch = "wasm32"))]
 pub fn cjk_font() -> Option<(Vec<u8>, u32)> {
     let mut candidates: Vec<PathBuf> = [
         // macOS
@@ -246,6 +277,21 @@ pub fn install_fonts(ctx: &egui::Context, chinese: bool) -> bool {
         add("symbols", egui::FontData::from_static(data));
     }
     let mut ok = true;
+    #[cfg(target_arch = "wasm32")]
+    if chinese && cjk_font().is_none() && !WEB_CJK_FETCHING.with(|f| f.replace(true)) {
+        // Fetch the font, then set the fonts again.
+        let ctx = ctx.clone();
+        crate::platform::fetch(WEB_CJK_URL, move |r| {
+            WEB_CJK_FETCHING.with(|f| f.set(false));
+            if let Ok(bytes) = r {
+                WEB_CJK.with(|c| *c.borrow_mut() = Some(bytes));
+                if lang() == Lang::Zh {
+                    install_fonts(&ctx, true);
+                }
+            }
+            ctx.request_repaint();
+        });
+    }
     if chinese {
         match cjk_font() {
             Some((bytes, index)) => {
@@ -253,7 +299,7 @@ pub fn install_fonts(ctx: &egui::Context, chinese: bool) -> bool {
                 d.index = index;
                 add("cjk", d);
             }
-            None => ok = false,
+            None => ok = crate::platform::WEB,
         }
     }
     ctx.set_fonts(fonts);

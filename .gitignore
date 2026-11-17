@@ -1,3 +1,6 @@
 /target
 *.aux
 *.log
+/crates/goldstone-web/dist/
+/crates/goldstone-web/fonts/*.otf
+/crates/goldstone-web/fonts/*LICENSE*

@@ -418,6 +418,10 @@ pub const ZH: &[(&str, &str)] = &[
     ("Feynman Diagrams", "费曼图"),
     ("My Templates", "我的模板"),
     (
+        "Kept in this browser's storage.",
+        "保存在此浏览器的存储中。",
+    ),
+    (
         "Select the objects to keep as a template first",
         "请先选择要保存为模板的对象",
     ),
@@ -460,6 +464,23 @@ pub const ZH: &[(&str, &str)] = &[
         "包含第三方软件和字体，各自遵循其许可证。",
     ),
     ("Mouse", "鼠标"),
+    ("Export", "导出"),
+    ("Download the drawing as:", "将绘图下载为："),
+    ("PDF (vector)", "PDF（矢量）"),
+    (
+        "SVG (vector, reopenable in Goldstone)",
+        "SVG（矢量，可在 Goldstone 中重新打开）",
+    ),
+    ("PNG (300 dpi)", "PNG（300 dpi）"),
+    (
+        "TikZ picture (\\input into a paper)",
+        "TikZ 图（可 \\input 到论文中）",
+    ),
+    ("LaTeX document", "LaTeX 文档"),
+    (
+        "The web version is always the latest",
+        "网页版始终是最新版本",
+    ),
     // ---- messages ----------------------------------------------------------------
     ("Nothing to undo", "没有可撤销的操作"),
     ("Nothing to redo", "没有可重做的操作"),

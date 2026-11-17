@@ -19,8 +19,12 @@ pub enum Os {
 }
 
 impl Os {
-    /// The platform this binary was built for.
-    pub const fn current() -> Os {
+    /// The platform this program runs on (in a browser: the browser's).
+    pub fn current() -> Os {
+        #[cfg(target_arch = "wasm32")]
+        if crate::platform::is_mac() {
+            return Os::Mac;
+        }
         if cfg!(target_os = "macos") {
             Os::Mac
         } else {

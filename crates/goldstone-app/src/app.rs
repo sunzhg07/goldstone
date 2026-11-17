@@ -382,7 +382,17 @@ pub struct GoldstoneApp {
     pub(crate) code: crate::plot_dialog::CodeState,
     pub(crate) templates: crate::templates_ui::TemplatesState,
     pub(crate) picker: crate::pick::Picker,
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) updater: crate::update::Updater,
+    /// Web: files picked or dropped, waiting to be opened.
+    inbox: crate::platform::Inbox,
+    /// Web: the Export dialog (formats to download).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) show_export: bool,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    ctx: egui::Context,
+    #[cfg(target_arch = "wasm32")]
+    unload_guard: bool,
     /// The last color picked from the screen (`#rrggbb`).
     pub(crate) picked: Option<String>,
     pub(crate) source: SourceState,
@@ -460,7 +470,13 @@ impl GoldstoneApp {
             code: Default::default(),
             templates: Default::default(),
             picker: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
             updater: Default::default(),
+            inbox: Default::default(),
+            show_export: false,
+            ctx: cc.egui_ctx.clone(),
+            #[cfg(target_arch = "wasm32")]
+            unload_guard: false,
             picked: None,
             source: SourceState {
                 text: String::new(),
@@ -494,6 +510,7 @@ impl GoldstoneApp {
         if let Some(p) = path {
             app.open_path(&p);
         }
+        #[cfg(not(target_arch = "wasm32"))]
         crate::update::cleanup();
         app
     }
@@ -511,11 +528,13 @@ impl GoldstoneApp {
     }
 
     /// Whether any tab has unsaved changes.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn has_unsaved(&self) -> bool {
         self.any_dirty().is_some()
     }
 
     /// Files of the open tabs.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn open_files(&self) -> Vec<PathBuf> {
         (0..self.pages.len())
             .filter_map(|i| self.tab_path(i).map(Path::to_path_buf))
@@ -523,6 +542,7 @@ impl GoldstoneApp {
     }
 
     /// Closes the window without asking.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn quit_now(&mut self, ctx: &egui::Context) {
         self.allow_close = true;
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -735,21 +755,25 @@ impl GoldstoneApp {
             self.message = Some(format!("{} is already open", path.display()));
             return;
         }
-        let result = std::fs::read_to_string(path)
-            .map_err(|e| e.to_string())
-            .and_then(|text| {
-                let is_svg = path
-                    .extension()
-                    .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
-                let src = if is_svg {
-                    goldstone_export::svg::extract_source(&text)
-                        .ok_or("this SVG was not made by Goldstone (no embedded source)")?
-                } else {
-                    text
-                };
-                let doc = io::parse(&src).map_err(|e| e.to_string())?;
-                Ok((doc, src, is_svg))
-            });
+        let text = std::fs::read_to_string(path).map_err(|e| e.to_string());
+        self.open_text(path, text);
+    }
+
+    /// Opens a diagram read from `path` (on the web: just a file name).
+    pub(crate) fn open_text(&mut self, path: &Path, text: Result<String, String>) {
+        let result = text.and_then(|text| {
+            let is_svg = path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
+            let src = if is_svg {
+                goldstone_export::svg::extract_source(&text)
+                    .ok_or("this SVG was not made by Goldstone (no embedded source)")?
+            } else {
+                text
+            };
+            let doc = io::parse(&src).map_err(|e| e.to_string())?;
+            Ok((doc, src, is_svg))
+        });
         match result {
             Ok((doc, src, is_svg)) => {
                 // A figure opened from an SVG is saved as a new .gold file.
@@ -770,9 +794,27 @@ impl GoldstoneApp {
         }
     }
 
+    /// Opens the files that arrived in the browser (picked or dropped).
+    fn open_inbox(&mut self) {
+        for (name, bytes) in self.inbox.take() {
+            let text = bytes.and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()));
+            self.open_text(&name, text);
+        }
+    }
+
     fn save_to(&mut self, path: PathBuf) {
         let text = io::save(&self.doc, self.loaded_text.as_deref());
-        match std::fs::write(&path, &text) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let written = std::fs::write(&path, &text).map_err(|e| e.to_string());
+        #[cfg(target_arch = "wasm32")]
+        let written = crate::platform::download(
+            &path
+                .file_name()
+                .map_or("diagram.gold".into(), |n| n.to_string_lossy()),
+            text.as_bytes(),
+            "text/plain",
+        );
+        match written {
             Ok(()) => {
                 self.saved_doc = self.doc.clone();
                 self.loaded_text = Some(text);
@@ -791,6 +833,19 @@ impl GoldstoneApp {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn save_as(&mut self) {
+        // The browser saves downloads; the name is that of the tab.
+        let name = page_name(self.file.as_deref(), self.untitled);
+        let name = if name.ends_with(".gold") {
+            name
+        } else {
+            format!("{name}.gold")
+        };
+        self.save_to(PathBuf::from(name));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn save_as(&mut self) {
         let name = self
             .file
@@ -809,16 +864,67 @@ impl GoldstoneApp {
         }
     }
 
+    fn export_stem(&self) -> String {
+        self.file
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .map_or("diagram".into(), |n| n.to_string_lossy().into_owned())
+    }
+
+    /// The drawing in `format`.
+    pub(crate) fn export_bytes(&mut self, format: Format) -> Result<Vec<u8>, String> {
+        if !self.scene_errors.is_empty() {
+            return Err("Fix the errors in the diagram before exporting".into());
+        }
+        let source = io::save(&self.doc, self.loaded_text.as_deref());
+        let name = self
+            .file
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned());
+        let opts = goldstone_export::Options {
+            source: Some(&source),
+            source_name: name.as_deref(),
+            dpi: 300.0,
+        };
+        goldstone_export::export(&self.scene, format, &mut self.labels, &opts)
+            .map_err(|e| format!("Export failed: {e}"))
+    }
+
+    /// Web: Export downloads the drawing in the chosen format.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn export_download(&mut self, ext: &str) {
+        let Some(format) = Format::from_extension(ext) else {
+            return;
+        };
+        let name = format!("{}.{ext}", self.export_stem());
+        let mime = match ext {
+            "pdf" => "application/pdf",
+            "svg" => "image/svg+xml",
+            "png" => "image/png",
+            _ => "text/plain",
+        };
+        self.message = Some(match self.export_bytes(format) {
+            Ok(bytes) => match crate::platform::download(&name, &bytes, mime) {
+                Ok(()) => format!("Exported {name}"),
+                Err(e) => format!("Export failed: {e}"),
+            },
+            Err(e) => e,
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn export(&mut self) {
+        self.show_export = true;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn export(&mut self) {
         if !self.scene_errors.is_empty() {
             self.message = Some("Fix the errors in the diagram before exporting".into());
             return;
         }
-        let stem = self
-            .file
-            .as_ref()
-            .and_then(|p| p.file_stem())
-            .map_or("diagram".into(), |n| n.to_string_lossy().into_owned());
+        let stem = self.export_stem();
         let Some(path) = rfd::FileDialog::new()
             .add_filter("PDF", &["pdf"])
             .add_filter("SVG (reopenable in Goldstone)", &["svg"])
@@ -838,26 +944,13 @@ impl GoldstoneApp {
                 Some("Choose a file name ending in .pdf, .svg, .png, .tikz or .tex".into());
             return;
         };
-        let source = io::save(&self.doc, self.loaded_text.as_deref());
-        let name = self
-            .file
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|n| n.to_string_lossy().into_owned());
-        let opts = goldstone_export::Options {
-            source: Some(&source),
-            source_name: name.as_deref(),
-            dpi: 300.0,
-        };
-        self.message = Some(
-            match goldstone_export::export(&self.scene, format, &mut self.labels, &opts) {
-                Ok(bytes) => match std::fs::write(&path, bytes) {
-                    Ok(()) => format!("Exported {}", path.display()),
-                    Err(e) => format!("Cannot write {}: {e}", path.display()),
-                },
-                Err(e) => format!("Export failed: {e}"),
+        self.message = Some(match self.export_bytes(format) {
+            Ok(bytes) => match std::fs::write(&path, bytes) {
+                Ok(()) => format!("Exported {}", path.display()),
+                Err(e) => format!("Cannot write {}: {e}", path.display()),
             },
-        );
+            Err(e) => e,
+        });
     }
 
     /// Runs `p`, first asking about unsaved changes (for Quit: of each
@@ -881,6 +974,12 @@ impl GoldstoneApp {
         self.message = Some("New diagram".into());
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn open_dialog(&mut self) {
+        crate::platform::pick_files(self.inbox.clone(), self.ctx.clone());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn open_dialog(&mut self) {
         if let Some(paths) = rfd::FileDialog::new()
             .add_filter("Goldstone diagram", &["gold", "svg"])
@@ -1209,6 +1308,7 @@ impl GoldstoneApp {
             Action::ToggleRulers => self.show_rulers = !self.show_rulers,
             Action::ToggleIds => self.show_ids = !self.show_ids,
             Action::ShowAlign => self.tab = Tab::Align,
+            Action::Quit if crate::platform::WEB => {}
             Action::Quit => self.request(Pending::Quit, ctx),
             Action::FromLatex => self.latex.open = true,
             Action::FunctionPlot => self.plot.open = true,
@@ -1255,6 +1355,11 @@ impl GoldstoneApp {
             Action::ShowSource => self.tab = Tab::Source,
             Action::ShowCode => self.tab = Tab::Code,
             Action::Shortcuts => self.show_shortcuts = true,
+            #[cfg(target_arch = "wasm32")]
+            Action::CheckUpdates => {
+                self.message = Some("The web version is always the latest".into());
+            }
+            #[cfg(not(target_arch = "wasm32"))]
             Action::CheckUpdates => {
                 self.updater.open = true;
                 if !matches!(
@@ -2850,14 +2955,25 @@ impl eframe::App for GoldstoneApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.request(Pending::Quit, &ctx);
         }
-        let dropped: Vec<PathBuf> = ctx.input(|i| {
-            i.raw
-                .dropped_files
-                .iter()
-                .map(|f| f.path().to_path_buf())
-                .collect()
-        });
-        self.open_paths(&dropped);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let dropped: Vec<PathBuf> = ctx.input(|i| {
+                i.raw
+                    .dropped_files
+                    .iter()
+                    .map(|f| f.path().to_path_buf())
+                    .collect()
+            });
+            self.open_paths(&dropped);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+            if !dropped.is_empty() {
+                crate::platform::read_dropped(dropped, self.inbox.clone(), ctx.clone());
+            }
+        }
+        self.open_inbox();
         // egui moves keyboard focus between widgets with Tab and the arrow
         // keys; while no widget has focus those keys belong to the canvas.
         if ctx.memory(|m| m.focused().is_none()) {
@@ -2893,7 +3009,10 @@ impl eframe::App for GoldstoneApp {
         self.latex_window(&ctx);
         self.plot_window(&ctx);
         self.templates_window(&ctx);
+        #[cfg(not(target_arch = "wasm32"))]
         self.update_window(&ctx);
+        #[cfg(target_arch = "wasm32")]
+        self.export_window(&ctx);
         self.add_template_window(&ctx);
 
         let interacting =
@@ -2903,6 +3022,14 @@ impl eframe::App for GoldstoneApp {
         }
         self.sync_scene();
         self.update_title(&ctx);
+        #[cfg(target_arch = "wasm32")]
+        {
+            let dirty = self.any_dirty().is_some();
+            if dirty != self.unload_guard {
+                crate::platform::guard_unload(dirty);
+                self.unload_guard = dirty;
+            }
+        }
     }
 }
 

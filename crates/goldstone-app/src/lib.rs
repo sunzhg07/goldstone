@@ -9,11 +9,14 @@ pub mod keys;
 mod menus;
 mod panels;
 mod pick;
+mod platform;
 mod plot_dialog;
 mod templates_ui;
+#[cfg(not(target_arch = "wasm32"))]
 mod update;
 mod view;
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
 /// Licenses and copyright notices of the third-party crates and fonts
@@ -22,6 +25,7 @@ use std::path::PathBuf;
 pub const THIRD_PARTY_LICENSES: &str = include_str!("../../../THIRD_PARTY_LICENSES.md");
 
 /// Opens the editor window with these files, each in a tab.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn run(paths: Vec<PathBuf>) -> eframe::Result {
     i18n::set_lang(i18n::initial());
     let options = eframe::NativeOptions {

@@ -1,0 +1,68 @@
+# Builds the web version (WebAssembly, the same editor as the desktop
+# program) and publishes it on GitHub Pages:
+# https://sunzhg07.github.io/goldstone/
+# One-time setup: Settings ▸ Pages ▸ Source: GitHub Actions.
+
+name: Web
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Chinese interface font (fetched by the page on demand)
+        run: |
+          cd crates/goldstone-web/fonts
+          curl -fsSL -o NotoSansSC-Regular.otf \
+            https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/SC/NotoSansSC-Regular.otf
+          curl -fsSL -o NotoSansSC-LICENSE.txt \
+            https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/LICENSE
+
+      - name: Build
+        run: |
+          cd crates/goldstone-web
+          trunk build --cargo-profile web-release --public-url ./
+          cp ../../LICENSE ../../THIRD_PARTY_LICENSES.md dist/
+          ls -l dist
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: crates/goldstone-web/dist
+
+  deploy:
+    name: Publish on GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

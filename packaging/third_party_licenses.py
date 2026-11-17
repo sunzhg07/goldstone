@@ -106,6 +106,7 @@ def main():
     w("| Hack | editor interface (monospace) | MIT; DejaVu parts public domain | epaint_default_fonts |")
     w("| Noto Emoji | editor interface | SIL Open Font License 1.1 | epaint_default_fonts |")
     w("| emoji-icon-font, egui-icons | editor interface | MIT | epaint_default_fonts |")
+    w("| Noto Sans SC | web version only: Chinese interface (fetched on demand) | SIL Open Font License 1.1 | notofonts/noto-cjk (license next to the font on the site) |")
     w("\nTheir full license texts are under the crates `typst-assets` (NOTICE) and")
     w("`epaint_default_fonts` (fonts/*.txt) below.\n")
 
