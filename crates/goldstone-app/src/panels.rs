@@ -435,9 +435,11 @@ impl GoldstoneApp {
                 ui.separator();
                 item(ui, None, "Export…", Action::Export);
                 ui.separator();
-                item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
-                ui.separator();
                 item(ui, None, "Quit", Action::Quit);
+            });
+            ui.menu_button("Insert", |ui| {
+                item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
+                item(ui, None, "Function Plot…", Action::FunctionPlot);
             });
             ui.menu_button("Edit", |ui| {
                 item(ui, None, "Undo", Action::Undo);
@@ -551,6 +553,7 @@ impl GoldstoneApp {
                 item(ui, None, "Objects", Action::ShowObjects);
                 item(ui, None, "Align & Distribute", Action::ShowAlign);
                 item(ui, None, "Source", Action::ShowSource);
+                item(ui, None, "LaTeX / Plot Source", Action::ShowCode);
             });
             ui.menu_button("Help", |ui| {
                 item(ui, None, "Keyboard and Mouse", Action::Shortcuts);
@@ -913,6 +916,8 @@ impl GoldstoneApp {
             ui.selectable_value(&mut self.tab, Tab::Objects, "Objects");
             ui.selectable_value(&mut self.tab, Tab::Align, "Align");
             ui.selectable_value(&mut self.tab, Tab::Source, "Source");
+            ui.selectable_value(&mut self.tab, Tab::Code, "LaTeX")
+                .on_hover_text("Edit the equation or plot settings of the selected drawing; it is redrawn as you type");
         });
         ui.separator();
         match self.tab {
@@ -928,6 +933,11 @@ impl GoldstoneApp {
             }
             Tab::Align => self.align_tab(ui),
             Tab::Source => self.source_tab(ui),
+            Tab::Code => {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| self.code_tab(ui));
+            }
         }
     }
 

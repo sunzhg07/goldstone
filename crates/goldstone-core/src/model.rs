@@ -436,4 +436,46 @@ pub struct Shape {
 pub struct Group {
     pub id: String,
     pub members: Vec<String>,
+    /// The LaTeX equation this group was drawn from (edit it to redraw).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latex: Option<String>,
+    /// The function plot this group was drawn from (edit it to redraw).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plot: Option<PlotSource>,
+}
+
+/// Settings of a function plot, as written by the user.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotSource {
+    /// Functions of x, separated by `;` or new lines.
+    pub functions: String,
+    /// x range, as numbers or expressions such as `-2pi`.
+    pub x: [String; 2],
+    /// y range; none: from the values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y: Option<[String; 2]>,
+    /// Plot area in pt.
+    pub size: [f64; 2],
+    /// Write each function next to its curve.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub labels: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y_label: Option<String>,
+}
+
+impl Default for PlotSource {
+    fn default() -> Self {
+        Self {
+            functions: "sin(x)".into(),
+            x: ["-2pi".into(), "2pi".into()],
+            y: None,
+            size: [200.0, 130.0],
+            labels: None,
+            x_label: None,
+            y_label: None,
+        }
+    }
 }

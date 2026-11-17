@@ -347,6 +347,40 @@ fn auto_id(
     }
 }
 
+/// Puts every object of `doc` into one group `id` (replacing its groups);
+/// objects without an id get their automatic one.
+pub fn group_everything<'a>(doc: &'a mut Document, id: &str) -> &'a mut crate::model::Group {
+    let ids = ids(doc);
+    for (e, i) in doc.edges.iter_mut().zip(&ids.edges) {
+        e.id.get_or_insert_with(|| i.clone());
+    }
+    for (t, i) in doc.texts.iter_mut().zip(&ids.texts) {
+        t.id.get_or_insert_with(|| i.clone());
+    }
+    for (a, i) in doc.axes.iter_mut().zip(&ids.axes) {
+        a.id.get_or_insert_with(|| i.clone());
+    }
+    for (s, i) in doc.shapes.iter_mut().zip(&ids.shapes) {
+        s.id.get_or_insert_with(|| i.clone());
+    }
+    let members = doc
+        .vertices
+        .iter()
+        .map(|v| v.id.clone())
+        .chain(ids.edges)
+        .chain(ids.texts)
+        .chain(ids.axes)
+        .chain(ids.shapes)
+        .collect();
+    doc.groups = vec![crate::model::Group {
+        id: id.into(),
+        members,
+        latex: None,
+        plot: None,
+    }];
+    &mut doc.groups[0]
+}
+
 /// The id of every object; objects without one get an automatic id
 /// (`e1`, `t1`, `ax1`, `s1`), as in error messages and exports.
 #[derive(Debug, Clone, PartialEq)]
@@ -464,7 +498,7 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
         let width = s.width.or(st.width).unwrap_or(d::WIDTH);
         let width = ctx.non_negative(width, "width", &what);
         let layer = s.layer.or(st.layer).unwrap_or(d::LAYER_SHAPE);
-        let path = match crate::shapes::outline(s) {
+        let path = match crate::shapes::outline_open(s) {
             Ok(p) => p,
             Err(e) => {
                 ctx.errors.push(format!("{what}: {e}"));

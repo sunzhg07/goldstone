@@ -596,6 +596,11 @@ Align & Distribute.
 - **Groups** are flat (`[[group]]` with member ids). Grouping writes the
   automatic id of members that have none (`e3`), so the group keeps
   pointing at them when other objects are added or deleted.
+- **Generated groups** remember their source: `latex = "…"` (a diagram
+  from LaTeX) or `plot = { functions, x, y, size, labels, x_label,
+  y_label }` (a function plot; ranges are strings such as `"-2pi"`). The
+  LaTeX tab redraws the group from it, keeping its lower-left corner and
+  id. A path shape without `Z` is drawn open (plot curves).
 - **Clipboard** content is `.gold` text: the selected objects, the
   vertices their edges need, their classes and contained groups.
 - **Boolean operations** use `linesweeper` (exact on Bézier curves);

@@ -76,6 +76,23 @@ goldstone latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_
 | `\hat J`, `(-1)^{…}`, 6j symbols, `\delta`, `^{J}` | not part of the diagram, left out |
 | `T{aj}` and other non-LaTeX | an error that says what to write |
 
+### Function plots
+
+```sh
+goldstone plot 'sin(x); cos(x); \frac{1}{1+x^2}' --x=-2pi:2pi -o plot.pdf
+```
+
+![Function plot](docs/images/plot.svg)
+
+Plain (`exp(-x^2/2)`) or LaTeX (`e^{-x^2/2}`) notation. In the editor:
+Insert ▸ Function Plot…; the plot is editable objects.
+
+### Edit the equation, the drawing follows
+
+A diagram from LaTeX or a plot remembers its source: select it and edit
+the equation in the **LaTeX** tab of the right panel; it is redrawn as you
+type.
+
 ### A whole document
 
 ```sh
@@ -162,6 +179,7 @@ goldstone render fig.gold -o fig.svg         # format from the extension
 goldstone render figs/*.gold -f tikz --out-dir paper/figs
 goldstone render fig.gold -o slide.png --background white --dpi 600
 goldstone latex '…' -o eq.pdf                # diagram of an equation
+goldstone plot 'sin(x)' --x=-pi:pi -o f.pdf  # function plot
 goldstone paper.tex                          # every equation of a document
 goldstone ls fig.gold                        # objects with ids and coordinates
 goldstone check figs/*.gold                  # validate, typeset all labels

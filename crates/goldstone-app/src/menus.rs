@@ -401,6 +401,7 @@ impl GoldstoneApp {
         });
         ui.separator();
         m.item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
+        m.item(ui, None, "Function Plot…", Action::FunctionPlot);
         if let Some(a) = m.chosen {
             self.do_action(a, &ctx);
         }

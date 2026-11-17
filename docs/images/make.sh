@@ -17,6 +17,7 @@ $G latex '\begin{aligned}
 \end{aligned}' -o $O/ccsd.svg $BG
 $G latex '\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba} + \frac{1}{4} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d' -o $O/imsrg.svg $BG
 $G latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_b \bar{n}_l \right) \Gamma_{ijab} \Omega_{abkl}' -o $O/imsrg2.svg $BG
+$G plot 'sin(x); cos(x); \frac{1}{1+x^2}' --x=-2pi:2pi -o $O/plot.svg $BG
 $G render examples/mbpt2.gold -o $O/handmade.svg $BG
 $G render examples/gallery.gold -o $O/gallery.svg $BG
 $G render examples/double.gold -o $O/double.svg $BG

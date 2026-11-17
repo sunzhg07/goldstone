@@ -71,8 +71,14 @@ Labels on lines are set in Fill & Stroke (*Label*, *Label side*,
 
 ## Diagrams from LaTeX
 
-File ▸ **Diagram from LaTeX…** (Ctrl+Shift+T) draws the diagram of a
+Insert ▸ **Diagram from LaTeX…** (Ctrl+Shift+T) draws the diagram of a
 tensor expression; so does `goldstone latex "…" -o fig.pdf` in a terminal.
+
+The diagram is one group that remembers its equation. While it is
+selected, the **LaTeX** tab of the right panel shows the equation: edit
+it and the diagram is redrawn as you type (it stays where it is; an
+error leaves the last good drawing). Ungroup it to edit the objects one by
+one; it then forgets the equation.
 
 ```text
 E2 = \sum_{abij} V_{ijab} T_{abij}            closed (energy) diagram
@@ -146,6 +152,34 @@ Factors that are not part of a diagram (coupling factors `\hat J`,
 `(-1)^{…}`, 6j symbols, Kronecker deltas, labels such as `^{J}`) are left
 out. Coverage of CC, IMSRG and VS-IMSRG notation is tracked in
 [PARSER_PLAN.md](PARSER_PLAN.md).
+
+## Function plots
+
+Insert ▸ **Function Plot…** draws functions of x with axes, ticks and
+numbered labels:
+
+```text
+sin(x); cos(x)            several functions: separate them with ; or new lines
+x^3 - 2x                  plain notation: + - * / ^, implicit products
+\frac{1}{1+x^2}           LaTeX: \frac \sqrt \sqrt[3] e^{…} \sin^2 x |x| \log_2
+exp(-x^2/2); tanh(x)      sin cos tan sec csc cot, arcsin…, sinh cosh tanh,
+                          exp ln log (= ln) log10 log2 sqrt abs sign floor ceil
+```
+
+The x range may use `pi` (`-2pi` to `2pi`); the y range is found from the
+values (poles such as those of tan x are cut off) or set by hand. Gaps
+(no real value) and poles break the curve. With several functions each is
+written next to its curve, where there is room.
+
+The plot is a group of ordinary objects (paths and labels): restyle
+curves, move labels, or ungroup it. Like a LaTeX diagram it remembers its
+settings, which the **LaTeX** tab shows for editing; the plot is redrawn as
+you type. In a terminal:
+
+```sh
+goldstone plot 'sin(x); cos(x)' --x=-2pi:2pi -o fig.pdf
+goldstone plot 'tan(x)' --x=-pi:pi --y=-5:5 --size 240x160 -o tan.svg
+```
 
 ## Selecting and editing
 

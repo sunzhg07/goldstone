@@ -45,6 +45,12 @@ pub fn outline(s: &Shape) -> Result<BezPath, String> {
     outline_raw(s).map(closed)
 }
 
+/// The outline as drawn: like [`outline`], but a path's subpaths without
+/// `Z` stay open (e.g. a function plot's curve).
+pub fn outline_open(s: &Shape) -> Result<BezPath, String> {
+    outline_raw(s)
+}
+
 fn outline_raw(s: &Shape) -> Result<BezPath, String> {
     let rot = s.rotation.unwrap_or(0.0).to_radians();
     let about_center = |p: BezPath| {
@@ -161,7 +167,7 @@ pub fn transform(s: &mut Shape, a: Affine) {
             s.rotation = None;
         }
         ShapeKind::Path => {
-            let Ok(o) = outline(s) else { return };
+            let Ok(o) = outline_raw(s) else { return };
             s.d = Some(format_d(&(a * o)));
             s.rotation = None;
         }

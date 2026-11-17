@@ -497,6 +497,8 @@ pub fn group(doc: &mut Document, sel: &Selection) -> Option<String> {
     doc.groups.push(Group {
         id: id.clone(),
         members,
+        latex: None,
+        plot: None,
     });
     Some(id)
 }

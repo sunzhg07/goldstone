@@ -6,6 +6,7 @@ pub mod icons;
 pub mod keys;
 mod menus;
 mod panels;
+mod plot_dialog;
 mod view;
 
 use std::path::PathBuf;

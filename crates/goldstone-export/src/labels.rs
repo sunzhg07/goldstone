@@ -185,11 +185,20 @@ fn typeset_uncached(content: &str, size: f64, color: Color) -> Result<LabelBox, 
     typeset_body(&to_typst(content)?, content, size, color)
 }
 
+/// Typst definitions of the helpers that `mitex` output calls (`\\sqrt`,
+/// `\\displaystyle`, `\\mathbf`, braces).
+const MITEX_PRELUDE: &str = "#let mitexsqrt(..args) = { let a = args.pos(); if a.len() == 1 { math.sqrt(a.at(0)) } else { let n = a.at(0); if n.has(\"children\") { n = n.children.filter(c => not (c.has(\"text\") and c.text in (\"[\", \"]\"))).join() }; math.root(n, a.at(1)) } }\n\
+#let mitexdisplay(it) = math.display(it)\n\
+#let mitexmathbf(it) = math.bold(math.upright(it))\n\
+#let mitexoverbrace(it) = math.overbrace(it)\n\
+#let mitexunderbrace(it) = math.underbrace(it)";
+
 fn typeset_body(body: &str, content: &str, size: f64, color: Color) -> Result<LabelBox, String> {
     let src = format!(
         "#set page(width: auto, height: auto, margin: {m}pt, fill: none)\n\
          #set text(font: \"New Computer Modern\", size: {size}pt, fill: rgb(\"{hex}\"), top-edge: \"bounds\", bottom-edge: \"bounds\")\n\
          #show math.equation: set text(font: \"New Computer Modern Math\")\n\
+         {MITEX_PRELUDE}\n\
          {body}\n",
         m = INNER_SEP,
         hex = color.hex(),
@@ -232,6 +241,20 @@ fn inner_svg(svg: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn roots_and_bold() {
+        let mut l = Labels::new();
+        for m in [
+            r"$\sqrt{x}$",
+            r"$\sqrt[3]{x+1}$",
+            r"$\mathbf{r}$",
+            r"$\displaystyle \frac{1}{2}$",
+        ] {
+            l.typeset(m, 10.0, Color::BLACK)
+                .unwrap_or_else(|e| panic!("{m}: {e}"));
+        }
+    }
 
     #[test]
     fn text_in_math() {

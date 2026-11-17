@@ -124,6 +124,8 @@ pub enum Tab {
     Objects,
     Align,
     Source,
+    /// LaTeX / plot settings of the selected generated drawing.
+    Code,
 }
 
 /// Defaults for objects created by the tools (shown in the tool controls bar).
@@ -355,6 +357,8 @@ pub struct GoldstoneApp {
     pub(crate) show_about: bool,
     pub(crate) show_licenses: bool,
     pub(crate) latex: LatexDialog,
+    pub(crate) plot: crate::plot_dialog::PlotDialog,
+    pub(crate) code: crate::plot_dialog::CodeState,
     pub(crate) source: SourceState,
     confirm: Option<Pending>,
     pub(crate) focus_text_content: bool,
@@ -435,6 +439,8 @@ impl GoldstoneApp {
             show_about: false,
             show_licenses: false,
             latex: LatexDialog::default(),
+            plot: Default::default(),
+            code: Default::default(),
             source: SourceState {
                 text: String::new(),
                 for_doc: None,
@@ -1039,6 +1045,7 @@ impl GoldstoneApp {
             Action::ShowAlign => self.tab = Tab::Align,
             Action::Quit => self.request(Pending::Quit, ctx),
             Action::FromLatex => self.latex.open = true,
+            Action::FunctionPlot => self.plot.open = true,
             Action::Nudge { dx, dy, step } => {
                 let s = match step {
                     Step::Normal => 2.0,
@@ -1078,6 +1085,7 @@ impl GoldstoneApp {
             Action::ShowFillStroke => self.tab = Tab::FillStroke,
             Action::ShowObjects => self.tab = Tab::Objects,
             Action::ShowSource => self.tab = Tab::Source,
+            Action::ShowCode => self.tab = Tab::Code,
             Action::Shortcuts => self.show_shortcuts = true,
         }
     }
@@ -1177,7 +1185,7 @@ impl GoldstoneApp {
     /// Adds the diagram of the LaTeX expression in the dialog: to the
     /// right of the drawing, or as the whole document (`replace`).
     pub(crate) fn insert_latex(&mut self, replace: bool) {
-        let part = match goldstone_core::expr::from_latex(&self.latex.text) {
+        let part = match goldstone_core::expr::from_latex_editable(&self.latex.text) {
             Ok(d) => d.doc,
             Err(e) => {
                 self.latex.status = Err(e);
@@ -1192,10 +1200,22 @@ impl GoldstoneApp {
             self.doc.shapes.clear();
             self.doc.groups.clear();
         }
+        let new = self.insert_doc(part);
+        self.tab = Tab::Code;
+        self.message = Some(format!(
+            "Drew {}: {} lines",
+            self.latex.text.trim(),
+            new.iter().filter(|o| matches!(o, ObjRef::Edge(_))).count()
+        ));
+    }
+
+    /// Adds `part` to the right of the drawing and selects it.
+    pub(crate) fn insert_doc(&mut self, part: Document) -> Selection {
+        self.sync_scene();
         let existing = self.page();
         let new = doc_ops::merge(&mut self.doc, part);
         if let (Some(old), Some(b)) = (
-            existing.filter(|_| !replace),
+            existing,
             doc_ops::bounds(&doc_ops::selection_points(&self.doc, &new)),
         ) {
             let g = self.grid();
@@ -1203,13 +1223,15 @@ impl GoldstoneApp {
             let y = ((old.y0 + self.scene.margin - b.y0) / g).round() * g;
             doc_ops::translate(&mut self.doc, &new, Vec2::new(x, y));
         }
-        self.message = Some(format!(
-            "Drew {}: {} lines",
-            self.latex.text.trim(),
-            new.iter().filter(|o| matches!(o, ObjRef::Edge(_))).count()
-        ));
-        self.selection = new;
+        self.selection = new.clone();
         self.view_fitted = false;
+        new
+    }
+
+    /// Opens `part` as a new diagram in its own tab.
+    pub(crate) fn insert_in_new_tab(&mut self, part: Document) {
+        self.new_tab(Document::default(), None, None);
+        self.insert_doc(part);
     }
 
     /// Units for Align & Distribute: groups move as one; a selected edge
@@ -2353,7 +2375,7 @@ impl GoldstoneApp {
             );
         }
         for (i, s) in self.doc.shapes.iter().enumerate() {
-            if let Ok(o) = goldstone_core::shapes::outline(s) {
+            if let Ok(o) = goldstone_core::shapes::outline_open(s) {
                 use goldstone_core::kurbo::Shape as _;
                 let b = o.bounding_box();
                 tag(
@@ -2634,6 +2656,7 @@ impl eframe::App for GoldstoneApp {
         self.shortcuts_window(&ctx);
         self.about_window(&ctx);
         self.latex_window(&ctx);
+        self.plot_window(&ctx);
 
         let interacting =
             ctx.input(|i| i.pointer.any_down()) || ctx.memory(|m| m.focused().is_some());

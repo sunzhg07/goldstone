@@ -75,7 +75,12 @@ fn normalize_table(t: &mut Table, inline: bool) {
                 if inline {
                     let mut it = std::mem::take(sub).into_inline_table();
                     it.fmt();
+                    it.decor_mut().set_prefix(" ");
                     *item = Item::Value(Value::InlineTable(it));
+                    // `key = { … }`, not `key= { … }`.
+                    if let Some(mut key) = t.key_mut(&k) {
+                        key.leaf_decor_mut().set_suffix(" ");
+                    }
                 }
             }
             Item::ArrayOfTables(a) => a.iter_mut().for_each(|e| normalize_table(e, true)),

@@ -129,7 +129,9 @@ pub enum Action {
     ShowObjects,
     ShowAlign,
     ShowSource,
+    ShowCode,
     FromLatex,
+    FunctionPlot,
     Shortcuts,
 }
 

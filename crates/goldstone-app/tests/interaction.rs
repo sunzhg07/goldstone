@@ -342,7 +342,7 @@ fn diagram_from_latex_dialog() {
     );
     h.run_steps(3);
     // The default expression is the MBPT2 energy.
-    h.get_by_label("Insert").click();
+    h.get_all_by_label("Insert").last().unwrap().click();
     h.run_steps(3);
     let d = h.state().document();
     assert_eq!(d.vertices.len(), 4);
@@ -423,4 +423,42 @@ fn right_click_menu_acts_on_the_clicked_object() {
         .click();
     h.run_steps(3);
     assert!(h.state().document().edges.is_empty());
+}
+
+#[test]
+fn latex_tab_redraws_as_you_type() {
+    let mut h = harness();
+    h.key_press_modifiers(
+        Modifiers {
+            shift: true,
+            ..Modifiers::COMMAND
+        },
+        Key::T,
+    );
+    h.run_steps(3);
+    h.get_all_by_label("Insert").last().unwrap().click();
+    h.run_steps(3);
+    assert_eq!(h.state().document().edges.len(), 6);
+    assert_eq!(h.state().document().groups.len(), 1);
+    h.get_by_label("LaTeX").click();
+    h.run_steps(3);
+    let edit = h.get_by_role(egui::accesskit::Role::MultilineTextInput);
+    edit.focus();
+    h.run_steps(2);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.run_steps(1);
+    h.get_by_role(egui::accesskit::Role::MultilineTextInput)
+        .type_text(r" + \frac{1}{2} V_{ijab} T_{abij}");
+    h.run_steps(4);
+    let d = h.state().document();
+    assert_eq!(d.groups.len(), 1, "still one group");
+    assert!(
+        d.groups[0]
+            .latex
+            .as_deref()
+            .unwrap()
+            .contains(r"\frac{1}{2}")
+    );
+    assert_eq!(d.edges.len(), 12, "two terms now");
+    assert_eq!(h.state().selected().len(), d.groups[0].members.len());
 }

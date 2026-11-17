@@ -9,6 +9,7 @@ pub mod geom;
 pub mod inspect;
 pub mod io;
 pub mod model;
+pub mod plot;
 pub mod quality;
 pub mod scene;
 pub mod shapes;

@@ -2224,6 +2224,8 @@ pub fn diagram(eq: &Equation) -> Result<Diagram, String> {
             b.doc.groups.push(Group {
                 id: format!("d{}", n + 1),
                 members: ids,
+                latex: None,
+                plot: None,
             });
         }
         cursor = max_x + shift + TERM_GAP / 2.0;
@@ -2266,6 +2268,14 @@ fn term_latex(t: &Term) -> String {
 /// Parses and builds in one step.
 pub fn from_latex(src: &str) -> Result<Diagram, String> {
     diagram(&parse(src)?)
+}
+
+/// Like [`from_latex`], with everything in one group that remembers the
+/// equation, so the drawing can be redrawn after the equation is edited.
+pub fn from_latex_editable(src: &str) -> Result<Diagram, String> {
+    let mut d = from_latex(src)?;
+    crate::scene::group_everything(&mut d.doc, "eq").latex = Some(src.to_string());
+    Ok(d)
 }
 
 #[cfg(test)]
