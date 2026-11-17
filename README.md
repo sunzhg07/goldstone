@@ -120,7 +120,7 @@ goldstone                      # or: goldstone fig.gold
 
 ![Editor](docs/images/editor.png)
 
-Inkscape layout and shortcuts (⌘ on macOS, Ctrl elsewhere): Line, Arc,
+Interface in English or 简体中文 (View ▸ Language). Tabs for several diagrams, right-click menus everywhere, resize handles, a screen color picker, Help ▸ Check for Updates. Inkscape layout and shortcuts (⌘ on macOS, Ctrl elsewhere): Line, Arc,
 Vertex, Cross (`---X`), Text, Rectangle and Ellipse tools; snapping;
 rubber-band, Shift and Alt (touch) selection; editing many objects at
 once; groups, copy/paste (as `.gold` text), align and distribute, boolean

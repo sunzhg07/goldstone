@@ -2,6 +2,8 @@
 
 pub mod app;
 mod doc_ops;
+pub mod i18n;
+mod i18n_zh;
 pub mod icons;
 pub mod keys;
 mod menus;
@@ -21,6 +23,7 @@ pub const THIRD_PARTY_LICENSES: &str = include_str!("../../../THIRD_PARTY_LICENS
 
 /// Opens the editor window with these files, each in a tab.
 pub fn run(paths: Vec<PathBuf>) -> eframe::Result {
+    i18n::set_lang(i18n::initial());
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1280.0, 820.0])

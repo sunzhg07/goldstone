@@ -296,6 +296,15 @@ one step.
 
 The file format is described in [DESIGN.md §4](DESIGN.md#4-file-format-gold-toml).
 
+## Language
+
+**View ▸ Language** switches the interface between English and 简体中文
+(Simplified Chinese); the choice is remembered. The first start follows
+the system language. Chinese text uses the system's Chinese font
+(PingFang or Hiragino on macOS, Microsoft YaHei on Windows, Noto Sans CJK
+or WenQuanYi on Linux; install `fonts-noto-cjk` if none is found).
+Diagram labels are not affected: they are typeset from your LaTeX.
+
 ## Updates
 
 **Help ▸ Check for Updates…** asks GitHub for the latest release (only

@@ -11,6 +11,7 @@ goldstone-core = { version = "0.1.0", path = "../goldstone-core" }
 goldstone-export = { version = "0.1.0", path = "../goldstone-export" }
 rfd = "0.18"
 serde_json = "1"
+toml = "1"
 
 [dev-dependencies]
 goldstone-export = { version = "0.1.0", path = "../goldstone-export" }

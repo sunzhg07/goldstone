@@ -2,6 +2,7 @@
 //! templates (`.gold` files in the settings folder), the Templates menu and
 //! the Browse Templates window.
 
+use crate::i18n::t;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -168,28 +169,28 @@ impl GoldstoneApp {
 
     /// The Templates menu: browse, add, and every category.
     pub(crate) fn templates_menu(&mut self, ui: &mut Ui) {
-        if ui.button("Browse Templates…").clicked() {
+        if ui.button(t("Browse Templates…")).clicked() {
             self.templates.browse = true;
             ui.close();
         }
         if ui
             .add_enabled(
                 !self.selection.is_empty(),
-                egui::Button::new("Add Selection to Templates…"),
+                egui::Button::new(t("Add Selection to Templates…")),
             )
             .clicked()
         {
             self.start_add_template();
             ui.close();
         }
-        if ui.button("Open Templates Folder").clicked() {
+        if ui.button(t("Open Templates Folder")).clicked() {
             self.open_templates_folder();
             ui.close();
         }
         ui.separator();
         let mut chosen: Option<(Document, String)> = None;
         for cat in CATEGORIES {
-            ui.menu_button(*cat, |ui| {
+            ui.menu_button(t(cat), |ui| {
                 egui::ScrollArea::vertical()
                     .max_height(500.0)
                     .show(ui, |ui| {
@@ -209,7 +210,7 @@ impl GoldstoneApp {
             ui.separator();
         }
         for cat in cats {
-            ui.menu_button(&cat, |ui| {
+            ui.menu_button(t(&cat), |ui| {
                 for t in user.iter().filter(|t| t.category == cat) {
                     if ui.button(&t.name).clicked() {
                         chosen = Some((t.doc.clone(), t.name.clone()));
@@ -292,26 +293,27 @@ impl GoldstoneApp {
         };
         let mut open = true;
         let mut done = false;
-        egui::Window::new("Add to Templates")
+        egui::Window::new(t("Add to Templates"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
-                ui.label(format!(
+                ui.label(crate::i18n::tr(&format!(
                     "Keep the {} selected object(s) as a template.",
                     self.selection.len()
-                ));
+                )));
                 egui::Grid::new("add-template")
                     .num_columns(2)
                     .show(ui, |ui| {
-                        ui.label("Name");
-                        let r = ui.add(TextEdit::singleline(&mut name).hint_text("e.g. my ladder"));
+                        ui.label(t("Name"));
+                        let r =
+                            ui.add(TextEdit::singleline(&mut name).hint_text(t("e.g. my ladder")));
                         r.request_focus();
                         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                             done = true;
                         }
                         ui.end_row();
-                        ui.label("Category");
+                        ui.label(t("Category"));
                         ui.horizontal(|ui| {
                             ui.add(TextEdit::singleline(&mut cat).desired_width(140.0));
                             egui::ComboBox::from_id_salt("tpl-cat")
@@ -326,9 +328,12 @@ impl GoldstoneApp {
                         ui.end_row();
                     });
                 if let Some(dir) = user_dir() {
-                    ui.weak(format!("Saved as a .gold file in {}", dir.display()));
+                    ui.weak(crate::i18n::tr(&format!(
+                        "Saved as a .gold file in {}",
+                        dir.display()
+                    )));
                 }
-                if ui.button("Save").clicked() {
+                if ui.button(t("Save")).clicked() {
                     done = true;
                 }
             });
@@ -384,32 +389,32 @@ impl GoldstoneApp {
         let mut delete: Option<PathBuf> = None;
         let px = (THUMB_PT * ctx.pixels_per_point()).round() as u32;
         let mut rendered = 0;
-        egui::Window::new("Templates")
+        egui::Window::new(t("Templates"))
             .open(&mut open)
             .default_size([640.0, 520.0])
             .max_width(900.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Search");
+                    ui.label(t("Search"));
                     ui.add(
                         TextEdit::singleline(&mut self.templates.query)
-                            .hint_text("star, arrow, ladder, QED…")
+                            .hint_text(t("star, arrow, ladder, QED…"))
                             .desired_width(220.0),
                     );
-                    if ui.button("Add Selection…").clicked() {
+                    if ui.button(t("Add Selection…")).clicked() {
                         self.start_add_template();
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .selectable_label(self.templates.category.is_none(), "All")
+                        .selectable_label(self.templates.category.is_none(), t("All"))
                         .clicked()
                     {
                         self.templates.category = None;
                     }
                     for c in &cats {
                         let on = self.templates.category.as_deref() == Some(c.as_str());
-                        if ui.selectable_label(on, c).clicked() {
+                        if ui.selectable_label(on, t(c)).clicked() {
                             self.templates.category = Some(c.clone());
                         }
                     }
@@ -430,7 +435,7 @@ impl GoldstoneApp {
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
                             if shown.is_empty() {
-                                ui.weak("No template matches.");
+                                ui.weak(t("No template matches."));
                             }
                             for row in shown.chunks(7) {
                                 ui.horizontal_top(|ui| {
@@ -461,29 +466,29 @@ impl GoldstoneApp {
                                                 )),
                                                 None => ui.add_sized(
                                                     [THUMB_PT + 8.0, THUMB_PT + 8.0],
-                                                    egui::Button::new("…"),
+                                                    egui::Button::new(t("…")),
                                                 ),
                                             };
-                                            let r = r.on_hover_text(format!(
+                                            let r = r.on_hover_text(crate::i18n::tr(&format!(
                                                 "{name}\n{cat}\nClick to insert"
-                                            ));
+                                            )));
                                             if r.clicked() {
                                                 insert =
                                                     Some(((*doc).clone(), name.clone(), false));
                                             }
                                             r.context_menu(|ui| {
-                                                if ui.button("Insert").clicked() {
+                                                if ui.button(t("Insert")).clicked() {
                                                     insert =
                                                         Some(((*doc).clone(), name.clone(), false));
                                                     ui.close();
                                                 }
-                                                if ui.button("Insert in New Tab").clicked() {
+                                                if ui.button(t("Insert in New Tab")).clicked() {
                                                     insert =
                                                         Some(((*doc).clone(), name.clone(), true));
                                                     ui.close();
                                                 }
                                                 if let Some(p) = path
-                                                    && ui.button("Delete Template").clicked()
+                                                    && ui.button(t("Delete Template")).clicked()
                                                 {
                                                     delete = Some(p.clone());
                                                     ui.close();

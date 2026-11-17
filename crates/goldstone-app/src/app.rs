@@ -1,5 +1,6 @@
 //! The editor: state, tools, canvas and file handling.
 
+use crate::i18n::t;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -17,6 +18,8 @@ use crate::doc_ops::{self, Selection};
 use crate::icons::Icons;
 use crate::keys::{self, Action, BINDINGS, Os, Step, Trigger};
 use crate::view::{self, TextBoxes, View};
+
+const NO_CJK_FONT: &str = "No Chinese font found on this system: install Noto Sans CJK (or WenQuanYi) to see Chinese text";
 
 pub const ACCENT: Color32 = Color32::from_rgb(30, 120, 230);
 const DESK: Color32 = Color32::from_rgb(222, 222, 226);
@@ -68,6 +71,11 @@ impl Tool {
     }
 
     pub fn name(self) -> &'static str {
+        crate::i18n::t(self.name_en())
+    }
+
+    /// The English name.
+    pub fn name_en(self) -> &'static str {
         match self {
             Tool::Select => "Select",
             Tool::Edit => "Edit",
@@ -96,6 +104,10 @@ impl Tool {
     }
 
     pub fn hint(self) -> &'static str {
+        crate::i18n::t(self.hint_en())
+    }
+
+    fn hint_en(self) -> &'static str {
         match self {
             Tool::Select => {
                 "Click to select (Shift: add/remove), drag to move; drag on empty canvas to select a region, Alt+drag to touch-select"
@@ -405,21 +417,8 @@ pub struct GoldstoneApp {
 
 impl GoldstoneApp {
     pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
-        if let Some(data) = goldstone_export::labels::symbol_font() {
-            let mut fonts = egui::FontDefinitions::default();
-            fonts.font_data.insert(
-                "symbols".into(),
-                std::sync::Arc::new(egui::FontData::from_static(data)),
-            );
-            for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-                fonts
-                    .families
-                    .entry(fam)
-                    .or_default()
-                    .push("symbols".into());
-            }
-            cc.egui_ctx.set_fonts(fonts);
-        }
+        let chinese = crate::i18n::lang() == crate::i18n::Lang::Zh;
+        let fonts_ok = crate::i18n::install_fonts(&cc.egui_ctx, chinese);
         let doc = Document::default();
         let mut app = Self {
             saved_doc: doc.clone(),
@@ -489,11 +488,26 @@ impl GoldstoneApp {
             untitled: 1,
             next_untitled: 2,
         };
+        if !fonts_ok {
+            app.message = Some(NO_CJK_FONT.into());
+        }
         if let Some(p) = path {
             app.open_path(&p);
         }
         crate::update::cleanup();
         app
+    }
+
+    /// Switches the interface language (and its fonts), and remembers it.
+    pub(crate) fn set_language(&mut self, ctx: &egui::Context, l: crate::i18n::Lang) {
+        crate::i18n::set_lang(l);
+        crate::i18n::save(l);
+        let ok = crate::i18n::install_fonts(ctx, l == crate::i18n::Lang::Zh);
+        self.message = Some(if ok {
+            format!("{}: {}", crate::i18n::t("Language"), l.name())
+        } else {
+            NO_CJK_FONT.into()
+        });
     }
 
     /// Whether any tab has unsaved changes.
@@ -2721,23 +2735,23 @@ impl GoldstoneApp {
             return;
         };
         let mut choice = None;
-        egui::Window::new("Unsaved changes")
+        egui::Window::new(t("Unsaved changes"))
             .collapsible(false)
             .resizable(false)
             .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
-                ui.label(format!(
+                ui.label(crate::i18n::tr(&format!(
                     "{} has unsaved changes.",
                     page_name(self.file.as_deref(), self.untitled)
-                ));
+                )));
                 ui.horizontal(|ui| {
-                    if ui.button("Save").clicked() {
+                    if ui.button(t("Save")).clicked() {
                         choice = Some(0);
                     }
-                    if ui.button("Discard").clicked() {
+                    if ui.button(t("Discard")).clicked() {
                         choice = Some(1);
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t("Cancel")).clicked() {
                         choice = Some(2);
                     }
                 });

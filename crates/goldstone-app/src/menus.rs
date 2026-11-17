@@ -1,5 +1,6 @@
 //! Document tabs and right-click menus (canvas, toolbox, tabs).
 
+use crate::i18n::t;
 use std::collections::HashMap;
 
 use egui::{DragValue, Ui};
@@ -35,6 +36,8 @@ impl Items {
     }
 
     pub fn item(&mut self, ui: &mut Ui, icon: Option<&str>, label: &str, a: Action) {
+        let label = crate::i18n::tr(label);
+        let label = label.as_str();
         let sc = keys::shortcut(a, self.os);
         let b = match icon.and_then(|i| self.imgs.get(i)) {
             Some(img) => egui::Button::image_and_text(img.clone(), label),
@@ -127,25 +130,29 @@ impl GoldstoneApp {
                                     close = Some(i);
                                 }
                                 r.context_menu(|ui| {
-                                    if ui.button("Close").clicked() {
+                                    if ui.button(t("Close")).clicked() {
                                         close = Some(i);
                                         ui.close();
                                     }
-                                    if ui.button("New Diagram").clicked() {
+                                    if ui.button(t("New Diagram")).clicked() {
                                         new = true;
                                         ui.close();
                                     }
                                 });
                                 if ui
-                                    .small_button("×")
-                                    .on_hover_text(format!("Close ({close_key})"))
+                                    .small_button(t("×"))
+                                    .on_hover_text(crate::i18n::tr(&format!("Close ({close_key})")))
                                     .clicked()
                                 {
                                     close = Some(i);
                                 }
                                 ui.add_space(6.0);
                             }
-                            if ui.small_button("+").on_hover_text("New diagram").clicked() {
+                            if ui
+                                .small_button(t("+"))
+                                .on_hover_text(t("New diagram"))
+                                .clicked()
+                            {
                                 new = true;
                             }
                         });
@@ -168,9 +175,9 @@ impl GoldstoneApp {
             Tool::Edge | Tool::Arc => {
                 let styles: Vec<String> = self.doc.styles.keys().cloned().collect();
                 let class = self.opts.class.clone().unwrap_or_else(|| "(none)".into());
-                ui.menu_button(format!("Class: {class}"), |ui| {
+                ui.menu_button(crate::i18n::tr(&format!("Class: {class}")), |ui| {
                     if ui
-                        .selectable_label(self.opts.class.is_none(), "(none)")
+                        .selectable_label(self.opts.class.is_none(), t("(none)"))
                         .clicked()
                     {
                         self.opts.class = None;
@@ -188,7 +195,7 @@ impl GoldstoneApp {
                     .iter()
                     .find(|(s, _)| *s == self.opts.stroke)
                     .map_or("", |(_, n)| *n);
-                ui.menu_button(format!("Stroke: {stroke}"), |ui| {
+                ui.menu_button(crate::i18n::tr(&format!("Stroke: {stroke}")), |ui| {
                     for (s, n) in STROKES {
                         if ui.selectable_label(self.opts.stroke == s, n).clicked() {
                             self.opts.stroke = s;
@@ -200,9 +207,9 @@ impl GoldstoneApp {
                     None => "from class",
                     Some(a) => ARROWS.iter().find(|(x, _)| *x == a).map_or("", |(_, n)| *n),
                 };
-                ui.menu_button(format!("Arrow: {arrow}"), |ui| {
+                ui.menu_button(crate::i18n::tr(&format!("Arrow: {arrow}")), |ui| {
                     if ui
-                        .selectable_label(self.opts.arrow.is_none(), "from class")
+                        .selectable_label(self.opts.arrow.is_none(), t("from class"))
                         .clicked()
                     {
                         self.opts.arrow = None;
@@ -215,10 +222,10 @@ impl GoldstoneApp {
                         }
                     }
                 });
-                ui.checkbox(&mut self.opts.double, "Double line");
+                ui.checkbox(&mut self.opts.double, t("Double line"));
                 if self.opts.double {
                     ui.horizontal(|ui| {
-                        let l = ui.label("Gap").id;
+                        let l = ui.label(t("Gap")).id;
                         let mut g = self.opts.double_sep.unwrap_or(d::DOUBLE_SEP);
                         if ui
                             .add(
@@ -240,7 +247,7 @@ impl GoldstoneApp {
                     .iter()
                     .find(|(k, _)| *k == self.opts.vertex_kind)
                     .map_or("", |(_, n)| *n);
-                ui.menu_button(format!("Kind: {kind}"), |ui| {
+                ui.menu_button(crate::i18n::tr(&format!("Kind: {kind}")), |ui| {
                     for (k, n) in KINDS {
                         if ui.selectable_label(self.opts.vertex_kind == k, n).clicked() {
                             self.opts.vertex_kind = k;
@@ -260,9 +267,9 @@ impl GoldstoneApp {
             }
         }
         ui.separator();
-        ui.checkbox(&mut self.show_grid, "Snap to grid");
+        ui.checkbox(&mut self.show_grid, t("Snap to grid"));
         ui.horizontal(|ui| {
-            let l = ui.label("Grid spacing").id;
+            let l = ui.label(t("Grid spacing")).id;
             let mut g = self.grid();
             if ui
                 .add(DragValue::new(&mut g).range(1.0..=100.0).suffix(" pt"))
@@ -278,7 +285,10 @@ impl GoldstoneApp {
     pub(crate) fn tool_menu(&mut self, ui: &mut Ui, tool: Tool) {
         let key = tool.key();
         if ui
-            .add(egui::Button::new(format!("Use {}", tool.name())).shortcut_text(key))
+            .add(
+                egui::Button::new(crate::i18n::tr(&format!("Use {}", tool.name())))
+                    .shortcut_text(key),
+            )
             .clicked()
         {
             self.set_tool(tool);
@@ -309,7 +319,7 @@ impl GoldstoneApp {
                 m.item(ui, Some("group"), "Group", Action::Group);
             }
             m.item(ui, Some("ungroup"), "Ungroup", Action::Ungroup);
-            ui.menu_button("Transform", |ui| {
+            ui.menu_button(t("Transform"), |ui| {
                 m.item(
                     ui,
                     Some("rotate-ccw"),
@@ -326,13 +336,13 @@ impl GoldstoneApp {
                 m.item(ui, Some("flip-v"), "Flip Vertical", Action::FlipV);
             });
             if several {
-                ui.menu_button("Align & Distribute", |ui| {
+                ui.menu_button(t("Align & Distribute"), |ui| {
                     for (icon, label, op) in ALIGN {
                         m.item(ui, Some(icon), label, Action::Align(*op));
                     }
                 });
             }
-            ui.menu_button("Path", |ui| {
+            ui.menu_button(t("Path"), |ui| {
                 m.item(ui, Some("to-path"), "Object to Path", Action::ObjectToPath);
                 ui.separator();
                 for (icon, label, op) in [
@@ -344,7 +354,7 @@ impl GoldstoneApp {
                     m.item(ui, Some(icon), label, Action::Bool(op));
                 }
             });
-            ui.menu_button("Select Same", |ui| {
+            ui.menu_button(t("Select Same"), |ui| {
                 for (label, same) in [
                     ("Fill and Stroke", Same::FillAndStroke),
                     ("Stroke Color", Same::StrokeColor),
@@ -361,7 +371,7 @@ impl GoldstoneApp {
         }
         ui.separator();
         let current = self.tool;
-        ui.menu_button("Tools", |ui| {
+        ui.menu_button(t("Tools"), |ui| {
             for t in Tool::ALL {
                 let label = if t == current {
                     format!("● {}", t.name())
@@ -372,11 +382,14 @@ impl GoldstoneApp {
             }
         });
         let mut options = false;
-        ui.menu_button(format!("{} Tool Options", current.name()), |ui| {
-            options = true;
-            self.tool_options_menu(ui, current);
-        });
-        ui.menu_button("View", |ui| {
+        ui.menu_button(
+            crate::i18n::tr(&format!("{} Tool Options", current.name())),
+            |ui| {
+                options = true;
+                self.tool_options_menu(ui, current);
+            },
+        );
+        ui.menu_button(t("View"), |ui| {
             m.item(ui, None, "Zoom In", Action::ZoomIn);
             m.item(ui, None, "Zoom Out", Action::ZoomOut);
             m.item(ui, None, "Zoom 1:1", Action::Zoom1);
@@ -405,7 +418,7 @@ impl GoldstoneApp {
         if any {
             m.item(ui, None, "Add Selection to Templates…", Action::AddTemplate);
         }
-        ui.menu_button("Templates", |ui| self.templates_menu(ui));
+        ui.menu_button(t("Templates"), |ui| self.templates_menu(ui));
         if let Some(a) = m.chosen {
             self.do_action(a, &ctx);
         }

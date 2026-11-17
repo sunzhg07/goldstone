@@ -1,6 +1,7 @@
 //! Menus, commands bar, toolbox, tool controls, docked dialogs, palettes and
 //! status bar.
 
+use crate::i18n::t;
 use std::ops::RangeInclusive;
 
 use egui::{Color32, ComboBox, DragValue, Grid, RichText, ScrollArea, TextEdit, Ui};
@@ -115,12 +116,12 @@ fn to_c32(c: Color) -> Color32 {
 
 fn reset(ui: &mut Ui, set: bool) -> bool {
     if set {
-        ui.small_button("↺")
-            .on_hover_text("Reset to the class / default value")
+        ui.small_button(t("↺"))
+            .on_hover_text(t("Reset to the class / default value"))
             .clicked()
     } else {
-        ui.weak("·")
-            .on_hover_text("Inherited from the class or the default");
+        ui.weak(t("·"))
+            .on_hover_text(t("Inherited from the class or the default"));
         false
     }
 }
@@ -141,7 +142,7 @@ fn num(
     range: RangeInclusive<f64>,
     mixed: bool,
 ) {
-    let l = ui.label(label).id;
+    let l = ui.label(t(label)).id;
     ui.horizontal(|ui| {
         let mut x = v.unwrap_or(inherited);
         let mut dv = DragValue::new(&mut x)
@@ -149,7 +150,7 @@ fn num(
             .range(range)
             .max_decimals(2);
         if mixed {
-            dv = dv.custom_formatter(|_, _| "mixed".into());
+            dv = dv.custom_formatter(|_, _| t("mixed").into());
         } else if v.is_none() {
             dv = dv.custom_formatter(|n, _| trim(n));
         }
@@ -172,7 +173,7 @@ fn choice<T: Copy + PartialEq>(
     options: &[(T, &str)],
     mixed: bool,
 ) {
-    ui.label(label);
+    ui.label(t(label));
     ui.horizontal(|ui| {
         let cur = v.unwrap_or(inherited);
         let name = options
@@ -180,17 +181,17 @@ fn choice<T: Copy + PartialEq>(
             .find(|(o, _)| *o == cur)
             .map_or("?", |(_, n)| *n);
         let text = if mixed {
-            RichText::new("mixed").italics()
+            RichText::new(t("mixed")).italics()
         } else if v.is_some() {
-            RichText::new(name)
+            RichText::new(t(name))
         } else {
-            RichText::new(name).weak()
+            RichText::new(t(name)).weak()
         };
         ComboBox::from_id_salt(label)
             .selected_text(text)
             .show_ui(ui, |ui| {
                 for (o, n) in options {
-                    if ui.selectable_label(!mixed && cur == *o, *n).clicked() {
+                    if ui.selectable_label(!mixed && cur == *o, t(n)).clicked() {
                         *v = Some(*o);
                     }
                 }
@@ -203,7 +204,7 @@ fn choice<T: Copy + PartialEq>(
 }
 
 fn flag(ui: &mut Ui, label: &str, v: &mut Option<bool>, inherited: bool, mixed: bool) {
-    let l = ui.label(label).id;
+    let l = ui.label(t(label)).id;
     ui.horizontal(|ui| {
         let mut x = v.unwrap_or(inherited);
         if ui
@@ -228,7 +229,7 @@ fn color(
     allow_none: bool,
     mixed: bool,
 ) {
-    let l = ui.label(label).id;
+    let l = ui.label(t(label)).id;
     ui.horizontal(|ui| {
         let cur = v.as_deref().and_then(|s| Color::parse(s).ok()).or(
             if v.as_deref().is_some_and(|s| s.eq_ignore_ascii_case("none")) {
@@ -242,10 +243,10 @@ fn color(
             *v = Some(Color::rgb(rgb[0], rgb[1], rgb[2]).hex());
         }
         let shown = if mixed {
-            "mixed".to_string()
+            t("mixed").to_string()
         } else {
             v.clone()
-                .unwrap_or_else(|| inherited.map_or("none".into(), |c| c.hex()))
+                .unwrap_or_else(|| inherited.map_or(t("none").into(), |c| c.hex()))
         };
         let text = if v.is_some() && !mixed {
             RichText::new(shown).monospace()
@@ -253,7 +254,7 @@ fn color(
             RichText::new(shown).monospace().weak()
         };
         ui.label(text);
-        if allow_none && (cur.is_some() || mixed) && ui.small_button("none").clicked() {
+        if allow_none && (cur.is_some() || mixed) && ui.small_button(t("none")).clicked() {
             *v = Some("none".into());
         }
         if reset(ui, v.is_some() || mixed) {
@@ -270,7 +271,7 @@ fn opt_text(
     hint: &str,
     mixed: bool,
 ) -> egui::Response {
-    let l = ui.label(label).id;
+    let l = ui.label(t(label)).id;
     let mut s = if mixed {
         String::new()
     } else {
@@ -279,7 +280,7 @@ fn opt_text(
     let r = ui
         .add(
             TextEdit::singleline(&mut s)
-                .hint_text(if mixed { "mixed" } else { hint })
+                .hint_text(if mixed { t("mixed") } else { hint })
                 .desired_width(f32::INFINITY),
         )
         .labelled_by(l);
@@ -291,9 +292,9 @@ fn opt_text(
 }
 
 fn class_choice(ui: &mut Ui, v: &mut Option<String>, styles: &[String], mixed: bool) {
-    ui.label("Class");
+    ui.label(t("Class"));
     let text = if mixed {
-        RichText::new("mixed").italics()
+        RichText::new(t("mixed")).italics()
     } else {
         RichText::new(v.clone().unwrap_or_else(|| "(none)".into()))
     };
@@ -301,7 +302,7 @@ fn class_choice(ui: &mut Ui, v: &mut Option<String>, styles: &[String], mixed: b
         .selected_text(text)
         .show_ui(ui, |ui| {
             if ui
-                .selectable_label(!mixed && v.is_none(), "(none)")
+                .selectable_label(!mixed && v.is_none(), t("(none)"))
                 .clicked()
             {
                 *v = None;
@@ -322,7 +323,7 @@ fn class_choice(ui: &mut Ui, v: &mut Option<String>, styles: &[String], mixed: b
 /// its bend angle (which is what the file stores).
 fn arc_fields(ui: &mut Ui, bend: &mut Option<f64>, l: f64) {
     let b = bend.unwrap_or(0.0);
-    let l_h = ui.label("Arc height (pt)").id;
+    let l_h = ui.label(t("Arc height (pt)")).id;
     let mut h = doc_ops::arc_height(l, b);
     let r = ui
         .add(DragValue::new(&mut h).speed(0.2).max_decimals(2))
@@ -334,7 +335,7 @@ fn arc_fields(ui: &mut Ui, bend: &mut Option<f64>, l: f64) {
         *bend = Some(doc_ops::round(doc_ops::bend_from_height(l, h)));
     }
     ui.end_row();
-    let l_r = ui.label("Arc radius (pt)").id;
+    let l_r = ui.label(t("Arc radius (pt)")).id;
     ui.horizontal(|ui| match doc_ops::arc_radius(l, b) {
         Some(mut rad) => {
             let resp = ui
@@ -345,11 +346,14 @@ fn arc_fields(ui: &mut Ui, bend: &mut Option<f64>, l: f64) {
                         .max_decimals(2),
                 )
                 .labelled_by(l_r)
-                .on_hover_text(format!("At least half the chord ({} pt)", trim(l / 2.0)));
+                .on_hover_text(crate::i18n::tr(&format!(
+                    "At least half the chord ({} pt)",
+                    trim(l / 2.0)
+                )));
             let mut deep = b.abs() > 90.0;
             let deep_resp = ui
-                .checkbox(&mut deep, "deep")
-                .on_hover_text("More than half a circle (the same radius fits two arcs)");
+                .checkbox(&mut deep, t("deep"))
+                .on_hover_text(t("More than half a circle (the same radius fits two arcs)"));
             if resp.changed() || deep_resp.changed() {
                 *bend = Some(doc_ops::round(doc_ops::bend_from_radius(
                     l,
@@ -360,7 +364,7 @@ fn arc_fields(ui: &mut Ui, bend: &mut Option<f64>, l: f64) {
             }
         }
         None => {
-            ui.weak("straight").labelled_by(l_r);
+            ui.weak(t("straight")).labelled_by(l_r);
         }
     });
     ui.end_row();
@@ -376,7 +380,7 @@ fn style_color(st: &Style) -> Option<Color> {
 }
 
 fn plural(n: usize, one: &str, many: &str) -> String {
-    format!("{n} {}", if n == 1 { one } else { many })
+    format!("{n} {}", t(if n == 1 { one } else { many }))
 }
 
 /// Indices of the selected objects of one kind.
@@ -422,11 +426,12 @@ impl GoldstoneApp {
         );
         let (show_grid, show_rulers, show_ids) = (self.show_grid, self.show_rulers, self.show_ids);
         let mut about = false;
+        let mut language = None;
         egui::MenuBar::new().ui(ui, |ui| {
             let mut item = |ui: &mut Ui, icon: Option<&str>, label: &str, a: Action| {
                 m.item(ui, icon, label, a)
             };
-            ui.menu_button("File", |ui| {
+            ui.menu_button(t("File"), |ui| {
                 item(ui, None, "New", Action::New);
                 item(ui, None, "Open…", Action::Open);
                 item(ui, None, "Save", Action::Save);
@@ -437,13 +442,13 @@ impl GoldstoneApp {
                 ui.separator();
                 item(ui, None, "Quit", Action::Quit);
             });
-            ui.menu_button("Insert", |ui| {
+            ui.menu_button(t("Insert"), |ui| {
                 item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
                 item(ui, None, "Function Plot…", Action::FunctionPlot);
                 item(ui, None, "Templates…", Action::Templates);
             });
-            ui.menu_button("Templates", |ui| self.templates_menu(ui));
-            ui.menu_button("Edit", |ui| {
+            ui.menu_button(t("Templates"), |ui| self.templates_menu(ui));
+            ui.menu_button(t("Edit"), |ui| {
                 item(ui, None, "Undo", Action::Undo);
                 item(ui, None, "Redo", Action::Redo);
                 ui.separator();
@@ -456,7 +461,7 @@ impl GoldstoneApp {
                 ui.separator();
                 item(ui, None, "Select All", Action::SelectAll);
                 item(ui, None, "Deselect", Action::Deselect);
-                ui.menu_button("Select Same", |ui| {
+                ui.menu_button(t("Select Same"), |ui| {
                     item(
                         ui,
                         None,
@@ -479,7 +484,7 @@ impl GoldstoneApp {
                     item(ui, None, "Object Type", Action::SelectSame(Same::Kind));
                 });
             });
-            ui.menu_button("View", |ui| {
+            ui.menu_button(t("View"), |ui| {
                 item(ui, None, "Zoom In", Action::ZoomIn);
                 item(ui, None, "Zoom Out", Action::ZoomOut);
                 item(ui, None, "Zoom 1:1", Action::Zoom1);
@@ -500,8 +505,20 @@ impl GoldstoneApp {
                     &check(show_ids, "Object Ids and Coordinates"),
                     Action::ToggleIds,
                 );
+                ui.separator();
+                ui.menu_button(t("Language"), |ui| {
+                    for l in crate::i18n::Lang::ALL {
+                        if ui
+                            .selectable_label(crate::i18n::lang() == l, l.name())
+                            .clicked()
+                        {
+                            language = Some(l);
+                            ui.close();
+                        }
+                    }
+                });
             });
-            ui.menu_button("Object", |ui| {
+            ui.menu_button(t("Object"), |ui| {
                 item(ui, Some("group"), "Group", Action::Group);
                 item(ui, Some("ungroup"), "Ungroup", Action::Ungroup);
                 ui.separator();
@@ -527,7 +544,7 @@ impl GoldstoneApp {
                     Action::ShowAlign,
                 );
             });
-            ui.menu_button("Path", |ui| {
+            ui.menu_button(t("Path"), |ui| {
                 item(ui, Some("to-path"), "Object to Path", Action::ObjectToPath);
                 ui.separator();
                 item(ui, Some("union"), "Union", Action::Bool(BoolOp::Union));
@@ -550,17 +567,17 @@ impl GoldstoneApp {
                     Action::Bool(BoolOp::Exclusion),
                 );
             });
-            ui.menu_button("Dialogs", |ui| {
+            ui.menu_button(t("Dialogs"), |ui| {
                 item(ui, None, "Fill & Stroke", Action::ShowFillStroke);
                 item(ui, None, "Objects", Action::ShowObjects);
                 item(ui, None, "Align & Distribute", Action::ShowAlign);
                 item(ui, None, "Source", Action::ShowSource);
                 item(ui, None, "LaTeX / Plot Source", Action::ShowCode);
             });
-            ui.menu_button("Help", |ui| {
+            ui.menu_button(t("Help"), |ui| {
                 item(ui, None, "Keyboard and Mouse", Action::Shortcuts);
                 item(ui, None, "Check for Updates…", Action::CheckUpdates);
-                if ui.button("About Goldstone").clicked() {
+                if ui.button(t("About Goldstone")).clicked() {
                     about = true;
                     ui.close();
                 }
@@ -570,6 +587,9 @@ impl GoldstoneApp {
             self.do_action(a, &ctx);
         }
         self.show_about |= about;
+        if let Some(l) = language {
+            self.set_language(&ctx, l);
+        }
     }
 
     /// Inkscape's commands bar: icon buttons for object and path commands.
@@ -612,7 +632,7 @@ impl GoldstoneApp {
                 };
                 let r = ui
                     .add(b.min_size(egui::vec2(36.0, 36.0)))
-                    .on_hover_text(format!("{tip}\nRight-click: options"));
+                    .on_hover_text(crate::i18n::tr(&format!("{tip}\nRight-click: options")));
                 if r.clicked() {
                     self.set_tool(t);
                 }
@@ -628,13 +648,13 @@ impl GoldstoneApp {
             match self.tool {
                 Tool::Edge | Tool::Arc => {
                     let styles: Vec<String> = self.doc.styles.keys().cloned().collect();
-                    ui.label("Class");
+                    ui.label(t("Class"));
                     let text = self.opts.class.clone().unwrap_or_else(|| "(none)".into());
                     ComboBox::from_id_salt("tc-class")
                         .selected_text(text)
                         .show_ui(ui, |ui| {
                             if ui
-                                .selectable_label(self.opts.class.is_none(), "(none)")
+                                .selectable_label(self.opts.class.is_none(), t("(none)"))
                                 .clicked()
                             {
                                 self.opts.class = None;
@@ -651,7 +671,7 @@ impl GoldstoneApp {
                                 }
                             }
                         });
-                    ui.label("Stroke");
+                    ui.label(t("Stroke"));
                     let name = STROKES
                         .iter()
                         .find(|(s, _)| *s == self.opts.stroke)
@@ -663,7 +683,7 @@ impl GoldstoneApp {
                                 ui.selectable_value(&mut self.opts.stroke, s, n);
                             }
                         });
-                    ui.label("Arrow");
+                    ui.label(t("Arrow"));
                     let name = match self.opts.arrow {
                         None => "from class",
                         Some(a) => ARROWS.iter().find(|(x, _)| *x == a).map_or("", |(_, n)| *n),
@@ -671,15 +691,15 @@ impl GoldstoneApp {
                     ComboBox::from_id_salt("tc-arrow")
                         .selected_text(name)
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.opts.arrow, None, "from class");
+                            ui.selectable_value(&mut self.opts.arrow, None, t("from class"));
                             for (a, n) in ARROWS {
                                 ui.selectable_value(&mut self.opts.arrow, Some(a), n);
                             }
                         });
-                    ui.checkbox(&mut self.opts.double, "Double")
-                        .on_hover_text("Draw new lines as double lines");
+                    ui.checkbox(&mut self.opts.double, t("Double"))
+                        .on_hover_text(t("Draw new lines as double lines"));
                     if self.opts.double {
-                        let l = ui.label("gap").id;
+                        let l = ui.label(t("gap")).id;
                         let mut g = self.opts.double_sep.unwrap_or(d::DOUBLE_SEP);
                         if ui
                             .add(DragValue::new(&mut g).speed(0.1).range(0.1..=20.0).suffix(" pt"))
@@ -691,7 +711,7 @@ impl GoldstoneApp {
                     }
                 }
                 Tool::Vertex => {
-                    ui.label("Kind");
+                    ui.label(t("Kind"));
                     let name = KINDS
                         .iter()
                         .find(|(k, _)| *k == self.opts.vertex_kind)
@@ -710,11 +730,11 @@ impl GoldstoneApp {
                         doc_ops::bounds(&doc_ops::selection_points(&self.doc, &self.selection))
                     {
                         let (mut x, mut y) = (b.x0, b.y0);
-                        let lx = ui.label("X").id;
+                        let lx = ui.label(t("X")).id;
                         let rx = ui
                             .add(DragValue::new(&mut x).speed(0.5).max_decimals(2))
                             .labelled_by(lx);
-                        let ly = ui.label("Y").id;
+                        let ly = ui.label(t("Y")).id;
                         let ry = ui
                             .add(DragValue::new(&mut y).speed(0.5).max_decimals(2))
                             .labelled_by(ly);
@@ -725,22 +745,22 @@ impl GoldstoneApp {
                                 Vec2::new(x - b.x0, y - b.y0),
                             );
                         }
-                        ui.label("pt").on_hover_text(
+                        ui.label(t("pt")).on_hover_text(
                             "X, Y: lower-left corner of the selection's vertices and anchor points, in pt (y up)",
                         );
                         // W, H: resize about the lower-left corner.
                         let (w0, h0) = (b.width(), b.height());
                         let (mut w, mut h) = (w0, h0);
-                        let lw = ui.label("W").id;
+                        let lw = ui.label(t("W")).id;
                         let rw = ui
                             .add_enabled(
                                 w0 > 1e-6,
                                 DragValue::new(&mut w).speed(0.5).range(0.1..=1e5).max_decimals(2),
                             )
                             .labelled_by(lw);
-                        ui.toggle_value(&mut self.lock_ratio, "lock")
-                            .on_hover_text("W and H change together");
-                        let lh = ui.label("H").id;
+                        ui.toggle_value(&mut self.lock_ratio, t("lock"))
+                            .on_hover_text(t("W and H change together"));
+                        let lh = ui.label(t("H")).id;
                         let rh = ui
                             .add_enabled(
                                 h0 > 1e-6,
@@ -766,7 +786,7 @@ impl GoldstoneApp {
                                 self.scale_widths,
                             );
                         }
-                        ui.checkbox(&mut self.scale_widths, "widths & text").on_hover_text(
+                        ui.checkbox(&mut self.scale_widths, t("widths & text")).on_hover_text(
                             "Resizing also scales line widths and text sizes",
                         );
                     }
@@ -777,9 +797,9 @@ impl GoldstoneApp {
                 _ => {}
             }
             ui.separator();
-            ui.checkbox(&mut self.show_grid, "Grid");
+            ui.checkbox(&mut self.show_grid, t("Grid"));
             let mut g = self.grid();
-            let l = ui.label("spacing").id;
+            let l = ui.label(t("spacing")).id;
             if ui
                 .add(DragValue::new(&mut g).range(1.0..=100.0).suffix(" pt"))
                 .labelled_by(l)
@@ -787,14 +807,14 @@ impl GoldstoneApp {
             {
                 self.doc.canvas.grid = Some(g);
             }
-            ui.checkbox(&mut self.show_ids, "Ids")
-                .on_hover_text("Show object ids and coordinates on the canvas (I)");
+            ui.checkbox(&mut self.show_ids, t("Ids"))
+                .on_hover_text(t("Show object ids and coordinates on the canvas (I)"));
         });
     }
 
     pub(crate) fn palettes(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            ui.label("Color");
+            ui.label(t("Color"));
             for (name, c) in NAMED {
                 let (r, resp) =
                     ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::click());
@@ -805,10 +825,10 @@ impl GoldstoneApp {
                     egui::Stroke::new(1.0, Color32::from_gray(150)),
                     egui::StrokeKind::Inside,
                 );
-                let resp = resp.on_hover_text(format!(
+                let resp = resp.on_hover_text(crate::i18n::tr(&format!(
                     "{name}: click sets the stroke color, {} the fill",
                     self.os.fill("{shift}click")
-                ));
+                )));
                 if resp.clicked() {
                     let fill = ui.input(|i| i.modifiers.shift);
                     self.apply_color(name, fill);
@@ -827,10 +847,10 @@ impl GoldstoneApp {
                     egui::Stroke::new(1.5, ACCENT),
                     egui::StrokeKind::Inside,
                 );
-                let resp = resp.on_hover_text(format!(
+                let resp = resp.on_hover_text(crate::i18n::tr(&format!(
                     "{hex} (picked): click sets the stroke color, {} the fill",
                     self.os.fill("{shift}click")
-                ));
+                )));
                 if resp.clicked() {
                     let fill = ui.input(|i| i.modifiers.shift);
                     self.apply_color(&hex, fill);
@@ -838,11 +858,11 @@ impl GoldstoneApp {
             }
             let picking = self.picker.active();
             let b = ui
-                .add_enabled(!picking, egui::Button::new(if picking { "Picking…" } else { "Pick" }))
-                .on_hover_text(format!(
+                .add_enabled(!picking, egui::Button::new(t(if picking { "Picking…" } else { "Pick" })))
+                .on_hover_text(crate::i18n::tr(&format!(
                     "Pick a color anywhere on the screen. Click: stroke color of the selection, {}: fill",
                     self.os.fill("{shift}click")
-                ));
+                )));
             if b.clicked() {
                 let fill = ui.input(|i| i.modifiers.shift);
                 self.picker.start(ui.ctx(), fill);
@@ -873,11 +893,11 @@ impl GoldstoneApp {
                 }
             }
             ui.separator();
-            ui.label("Stroke");
+            ui.label(t("Stroke"));
             for (s, n) in STROKES {
                 if ui
-                    .selectable_label(self.opts.stroke == s, n)
-                    .on_hover_text("Set the stroke of selected edges and of new edges")
+                    .selectable_label(self.opts.stroke == s, t(n))
+                    .on_hover_text(t("Set the stroke of selected edges and of new edges"))
                     .clicked()
                 {
                     self.opts.stroke = s;
@@ -911,8 +931,8 @@ impl GoldstoneApp {
                     .all(|&i| self.doc.edges[i].double == Some(true))
             };
             if ui
-                .selectable_label(on, "double")
-                .on_hover_text("Double line on/off for selected edges and new lines (any stroke)")
+                .selectable_label(on, t("double"))
+                .on_hover_text(t("Double line on/off for selected edges and new lines (any stroke)"))
                 .clicked()
             {
                 self.opts.double = !on;
@@ -923,7 +943,7 @@ impl GoldstoneApp {
             let ticked =
                 !edges.is_empty() && edges.iter().all(|&i| self.doc.edges[i].ticks == Some(true));
             if ui
-                .selectable_label(ticked, "ticks")
+                .selectable_label(ticked, t("ticks"))
                 .on_hover_text(
                     "Ticks along the selected edges on/off (spacing and marks: Fill & Stroke)",
                 )
@@ -938,7 +958,7 @@ impl GoldstoneApp {
                 .and_then(|&i| self.doc.edges[i].double_sep)
                 .or(self.opts.double_sep)
                 .unwrap_or(d::DOUBLE_SEP);
-            let l = ui.label("gap").id;
+            let l = ui.label(t("gap")).id;
             if ui
                 .add(
                     DragValue::new(&mut g)
@@ -947,7 +967,7 @@ impl GoldstoneApp {
                         .suffix(" pt"),
                 )
                 .labelled_by(l)
-                .on_hover_text("Separation of double lines: selected edges and new lines")
+                .on_hover_text(t("Separation of double lines: selected edges and new lines"))
                 .changed()
             {
                 let g = doc_ops::round(g);
@@ -977,7 +997,7 @@ impl GoldstoneApp {
 
     pub(crate) fn status_bar(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            ui.label(self.status_text());
+            ui.label(crate::i18n::tr(&self.status_text()));
             ui.separator();
             let errors: Vec<String> = self
                 .scene_errors
@@ -987,7 +1007,7 @@ impl GoldstoneApp {
                 .collect();
             if !errors.is_empty() {
                 let r = ui.label(
-                    RichText::new(format!("⚠ {} error(s)", errors.len()))
+                    RichText::new(crate::i18n::tr(&format!("⚠ {} error(s)", errors.len())))
                         .color(Color32::from_rgb(190, 30, 30)),
                 );
                 r.on_hover_text(errors.join("\n"));
@@ -1002,7 +1022,7 @@ impl GoldstoneApp {
                         ui.separator();
                     }
                     if let Some(m) = &self.message {
-                        ui.label(RichText::new(m).italics());
+                        ui.label(RichText::new(crate::i18n::tr(m)).italics());
                     } else {
                         ui.weak(self.os.fill(self.tool.hint()));
                     }
@@ -1013,12 +1033,12 @@ impl GoldstoneApp {
 
     pub(crate) fn dialogs(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.tab, Tab::FillStroke, "Fill & Stroke");
-            ui.selectable_value(&mut self.tab, Tab::Objects, "Objects");
-            ui.selectable_value(&mut self.tab, Tab::Align, "Align");
-            ui.selectable_value(&mut self.tab, Tab::Source, "Source");
-            ui.selectable_value(&mut self.tab, Tab::Code, "LaTeX")
-                .on_hover_text("Edit the equation or plot settings of the selected drawing; it is redrawn as you type");
+            ui.selectable_value(&mut self.tab, Tab::FillStroke, t("Fill & Stroke"));
+            ui.selectable_value(&mut self.tab, Tab::Objects, t("Objects"));
+            ui.selectable_value(&mut self.tab, Tab::Align, t("Align"));
+            ui.selectable_value(&mut self.tab, Tab::Source, t("Source"));
+            ui.selectable_value(&mut self.tab, Tab::Code, t("LaTeX"))
+                .on_hover_text(t("Edit the equation or plot settings of the selected drawing; it is redrawn as you type"));
         });
         ui.separator();
         match self.tab {
@@ -1048,9 +1068,9 @@ impl GoldstoneApp {
         let styles: Vec<String> = self.doc.styles.keys().cloned().collect();
         let sel: Vec<ObjRef> = self.selection.iter().copied().collect();
         if sel.is_empty() {
-            ui.weak("Select an object to edit its properties.");
+            ui.weak(t("Select an object to edit its properties."));
             ui.add_space(8.0);
-            ui.label(RichText::new("Document").strong());
+            ui.label(RichText::new(t("Document")).strong());
             Grid::new("doc").num_columns(2).show(ui, |ui| {
                 num(
                     ui,
@@ -1073,10 +1093,10 @@ impl GoldstoneApp {
             return;
         }
         if sel.len() > 1 {
-            ui.label(format!(
+            ui.label(crate::i18n::tr(&format!(
                 "{} objects selected. A change applies to all of them; \"mixed\" marks values that differ.",
                 sel.len()
-            ));
+            )));
             ui.add_space(4.0);
         }
         let vs = of_kind(&sel, |o| {
@@ -1171,7 +1191,7 @@ impl GoldstoneApp {
         Grid::new("vertex").num_columns(2).show(ui, |ui| {
             if single {
                 let i = idx[0];
-                ui.label("Id");
+                ui.label(t("Id"));
                 let cur = before.id.clone();
                 let buf = match &mut self.rename {
                     Some((j, b)) if *j == i => b,
@@ -1189,7 +1209,7 @@ impl GoldstoneApp {
                     }
                 }
                 ui.end_row();
-                ui.label("Position");
+                ui.label(crate::i18n::t("Position"));
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut v.at[0]).speed(0.5).prefix("x "));
                     ui.add(DragValue::new(&mut v.at[1]).speed(0.5).prefix("y "));
@@ -1621,8 +1641,10 @@ impl GoldstoneApp {
         ui.add_space(4.0);
         if e.controls.is_none() {
             if ui
-                .button("Make Bézier curve")
-                .on_hover_text("Replace the arc by a curve with two control points (Edit tool)")
+                .button(t("Make Bézier curve"))
+                .on_hover_text(t(
+                    "Replace the arc by a curve with two control points (Edit tool)",
+                ))
                 .clicked()
             {
                 let (a, b) = (
@@ -1646,7 +1668,7 @@ impl GoldstoneApp {
                     ]);
                 }
             }
-        } else if ui.button("Make straight").clicked() {
+        } else if ui.button(t("Make straight")).clicked() {
             self.doc.edges[i].controls = None;
         }
     }
@@ -1676,7 +1698,7 @@ impl GoldstoneApp {
             .cloned()
             .unwrap_or_default();
         let mut t = before.clone();
-        ui.label("Content (text with $LaTeX math$)");
+        ui.label(crate::i18n::t("Content (text with $LaTeX math$)"));
         let mixed_content = mx!(content);
         let mut content = if mixed_content {
             String::new()
@@ -1685,7 +1707,11 @@ impl GoldstoneApp {
         };
         let r = ui.add(
             TextEdit::multiline(&mut content)
-                .hint_text(if mixed_content { "mixed" } else { "" })
+                .hint_text(if mixed_content {
+                    crate::i18n::t("mixed")
+                } else {
+                    ""
+                })
                 .desired_rows(2)
                 .desired_width(f32::INFINITY)
                 .code_editor(),
@@ -1698,7 +1724,7 @@ impl GoldstoneApp {
         }
         Grid::new("text").num_columns(2).show(ui, |ui| {
             if single {
-                ui.label("Position");
+                ui.label(crate::i18n::t("Position"));
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut t.at[0]).speed(0.5).prefix("x "));
                     ui.add(DragValue::new(&mut t.at[1]).speed(0.5).prefix("y "));
@@ -1782,13 +1808,13 @@ impl GoldstoneApp {
         let mut s = before.clone();
         Grid::new("shape").num_columns(2).show(ui, |ui| {
             if single && let (Some(at), Some(size)) = (s.at.as_mut(), s.size.as_mut()) {
-                ui.label("Center");
+                ui.label(t("Center"));
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut at[0]).speed(0.5).prefix("x "));
                     ui.add(DragValue::new(&mut at[1]).speed(0.5).prefix("y "));
                 });
                 ui.end_row();
-                ui.label("Size");
+                ui.label(t("Size"));
                 ui.horizontal(|ui| {
                     ui.add(
                         DragValue::new(&mut size[0])
@@ -1849,13 +1875,13 @@ impl GoldstoneApp {
     fn axes_props(&mut self, ui: &mut Ui, idx: &[usize]) {
         if idx.len() > 1 {
             ui.label(RichText::new(plural(idx.len(), "axes", "axes")).strong());
-            ui.weak("Select one set of axes to edit it.");
+            ui.weak(t("Select one set of axes to edit it."));
             return;
         }
-        ui.label(RichText::new("Axes").strong());
+        ui.label(RichText::new(t("Axes")).strong());
         let a = &mut self.doc.axes[idx[0]];
         Grid::new("axes").num_columns(2).show(ui, |ui| {
-            ui.label("Origin");
+            ui.label(t("Origin"));
             ui.horizontal(|ui| {
                 ui.add(DragValue::new(&mut a.origin[0]).speed(0.5).prefix("x "));
                 ui.add(DragValue::new(&mut a.origin[1]).speed(0.5).prefix("y "));
@@ -2012,7 +2038,7 @@ impl GoldstoneApp {
             && self.doc.axes.is_empty()
             && self.doc.shapes.is_empty()
         {
-            ui.weak("The diagram is empty. Draw with the Line tool (B), the Arc tool (A) or the Vertex tool (P).");
+            ui.weak(t("The diagram is empty. Draw with the Line tool (B), the Arc tool (A) or the Vertex tool (P)."));
         }
     }
 
@@ -2020,7 +2046,7 @@ impl GoldstoneApp {
 
     fn align_tab(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
-        ui.weak("Relative to the bounding box of the selection. Groups move as one; a vertex shared by two objects moves once.");
+        ui.weak(t("Relative to the bounding box of the selection. Groups move as one; a vertex shared by two objects moves once."));
         ui.add_space(6.0);
         let mut chosen = None;
         for (row, title) in [(&ALIGN[..6], "Align"), (&ALIGN[6..], "Distribute")] {
@@ -2041,7 +2067,9 @@ impl GoldstoneApp {
             ui.add_space(6.0);
         }
         if self.selection.len() < 2 {
-            ui.weak("Select two or more objects (three or more to distribute).");
+            ui.weak(t(
+                "Select two or more objects (three or more to distribute).",
+            ));
         }
         if let Some(op) = chosen {
             self.do_action(Action::Align(op), &ctx);
@@ -2051,7 +2079,9 @@ impl GoldstoneApp {
     // ---- Source -----------------------------------------------------------------
 
     fn source_tab(&mut self, ui: &mut Ui) {
-        ui.weak("The .gold text of this diagram. Edits apply as soon as the text is valid.");
+        ui.weak(t(
+            "The .gold text of this diagram. Edits apply as soon as the text is valid.",
+        ));
         if let Some(e) = &self.source.error {
             ui.label(
                 RichText::new(e)
@@ -2095,21 +2125,21 @@ impl GoldstoneApp {
     pub(crate) fn shortcuts_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_shortcuts;
         let os = self.os;
-        egui::Window::new("Keyboard and mouse")
+        egui::Window::new(t("Keyboard and mouse"))
             .open(&mut open)
             .default_size([560.0, 560.0])
             .show(ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
-                    ui.weak(format!(
+                    ui.weak(crate::i18n::tr(&format!(
                         "Shortcuts for {}. The full manual is docs/MANUAL.md.",
                         os.name()
-                    ));
+                    )));
                     let mut group = "";
                     for b in BINDINGS.iter().filter(|b| b.listed && b.only.includes(os)) {
                         if b.group != group {
                             group = b.group;
                             ui.add_space(6.0);
-                            ui.label(RichText::new(group).strong().color(ACCENT));
+                            ui.label(RichText::new(t(group)).strong().color(ACCENT));
                         }
                         ui.horizontal(|ui| {
                             ui.add_sized(
@@ -2118,16 +2148,19 @@ impl GoldstoneApp {
                                     RichText::new(keys::keys_label(b, os)).monospace(),
                                 ),
                             );
-                            ui.label(b.desc);
+                            ui.label(t(b.desc));
                         });
                     }
                     ui.add_space(6.0);
-                    ui.label(RichText::new("Mouse").strong().color(ACCENT));
+                    ui.label(RichText::new(t("Mouse")).strong().color(ACCENT));
                     for (w, input, desc, _) in MOUSE {
                         ui.horizontal(|ui| {
-                            ui.add_sized([120.0, 16.0], egui::Label::new(RichText::new(*w).weak()));
-                            ui.label(RichText::new(os.fill(input)).monospace());
-                            ui.label(os.fill(desc));
+                            ui.add_sized(
+                                [120.0, 16.0],
+                                egui::Label::new(RichText::new(t(w)).weak()),
+                            );
+                            ui.label(RichText::new(os.fill(t(input))).monospace());
+                            ui.label(os.fill(t(desc)));
                         });
                     }
                 });
@@ -2141,11 +2174,11 @@ impl GoldstoneApp {
         }
         let mut open = true;
         let mut action: Option<bool> = None;
-        egui::Window::new("Diagram from LaTeX")
+        egui::Window::new(t("Diagram from LaTeX"))
             .open(&mut open)
             .default_width(520.0)
             .show(ctx, |ui| {
-                ui.label("Write a tensor expression; Goldstone draws its diagram.");
+                ui.label(t("Write a tensor expression; Goldstone draws its diagram."));
                 let r = ui.add(
                     TextEdit::multiline(&mut self.latex.text)
                         .code_editor()
@@ -2173,7 +2206,7 @@ impl GoldstoneApp {
                 }
                 match &self.latex.status {
                     Ok(s) if !s.is_empty() => {
-                        ui.label(RichText::new(format!("✓ {s}")).color(Color32::from_rgb(40, 150, 60)));
+                        ui.label(RichText::new(crate::i18n::tr(&format!("✓ {s}"))).color(Color32::from_rgb(40, 150, 60)));
                     }
                     Ok(_) => {}
                     Err(e) => {
@@ -2181,16 +2214,16 @@ impl GoldstoneApp {
                     }
                 }
                 for w in &self.latex.warnings {
-                    ui.label(RichText::new(format!("⚠ {w}")).color(Color32::from_rgb(200, 120, 0)));
+                    ui.label(RichText::new(crate::i18n::tr(&format!("⚠ {w}"))).color(Color32::from_rgb(200, 120, 0)));
                 }
                 let ok = self.latex.status.is_ok();
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(ok, egui::Button::new("Insert")).on_hover_text("Add the diagram to the right of the drawing").clicked() {
+                    if ui.add_enabled(ok, egui::Button::new(t("Insert"))).on_hover_text(t("Add the diagram to the right of the drawing")).clicked() {
                         action = Some(false);
                     }
                     if ui
-                        .add_enabled(ok, egui::Button::new("Replace drawing"))
-                        .on_hover_text("Replace everything with the diagram (undo brings it back)")
+                        .add_enabled(ok, egui::Button::new(t("Replace drawing")))
+                        .on_hover_text(t("Replace everything with the diagram (undo brings it back)"))
                         .clicked()
                     {
                         action = Some(true);
@@ -2201,10 +2234,10 @@ impl GoldstoneApp {
                 }
                 ui.add_space(4.0);
                 egui::CollapsingHeader::new("Conventions").default_open(false).show(ui, |ui| {
-                    ui.label("X_{pqrs} = ⟨pq|X|rs⟩: the first half of the indices are outgoing (bra), the second incoming (ket). X^{pq}_{rs} means the same.");
-                    ui.label("a–h are particles (arrow up), i–n holes (arrow down). An index used twice is an internal line; one used once is external and must stand on the left.");
-                    ui.label("V W v w g H F f U are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar).");
-                    ui.label("Terms: + and -; prefactors such as \\frac{1}{4} are kept; \\sum, *, \\cdot are ignored.");
+                    ui.label(t("X_{pqrs} = ⟨pq|X|rs⟩: the first half of the indices are outgoing (bra), the second incoming (ket). X^{pq}_{rs} means the same."));
+                    ui.label(t("a–h are particles (arrow up), i–n holes (arrow down). An index used twice is an internal line; one used once is external and must stand on the left."));
+                    ui.label(t("V W v w g H F f U are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar)."));
+                    ui.label(t("Terms: + and -; prefactors such as \\frac{1}{4} are kept; \\sum, *, \\cdot are ignored."));
                     ui.monospace("E2 = \\sum_{abij} V_{ijab} T_{abij}\nZ_{abic} = V_{abef} S_{efic}\nZ_{abij} = \\frac{1}{2} V_{abef} T_{efij}");
                 });
             });
@@ -2216,17 +2249,22 @@ impl GoldstoneApp {
 
     pub(crate) fn about_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_about;
-        egui::Window::new("About Goldstone")
+        egui::Window::new(t("About Goldstone"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
-                ui.label(format!("Goldstone {}", env!("CARGO_PKG_VERSION")));
-                ui.label("Many-body diagrams: coupled cluster, IMSRG, MBPT.");
-                ui.weak("MIT license.");
+                ui.label(crate::i18n::tr(&format!(
+                    "Goldstone {}",
+                    env!("CARGO_PKG_VERSION")
+                )));
+                ui.label(t("Many-body diagrams: coupled cluster, IMSRG, MBPT."));
+                ui.weak(t("MIT license."));
                 ui.add_space(4.0);
-                ui.weak("Includes third-party software and fonts under their own licenses.");
-                if ui.button("Third-party licenses").clicked() {
+                ui.weak(t(
+                    "Includes third-party software and fonts under their own licenses.",
+                ));
+                if ui.button(t("Third-party licenses")).clicked() {
                     self.show_licenses = true;
                 }
             });
@@ -2237,7 +2275,7 @@ impl GoldstoneApp {
     /// The licenses and notices of everything compiled into the program.
     fn licenses_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_licenses;
-        egui::Window::new("Third-party licenses")
+        egui::Window::new(t("Third-party licenses"))
             .open(&mut open)
             .default_size([640.0, 520.0])
             .show(ctx, |ui| {

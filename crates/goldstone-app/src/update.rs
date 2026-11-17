@@ -9,6 +9,7 @@
 //! `.zip` is replaced by the new one; a Debian package (in `/usr`) is
 //! downloaded for the user to install with `apt`.
 
+use crate::i18n::t;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -432,30 +433,38 @@ impl crate::app::GoldstoneApp {
         let page = format!("https://github.com/{REPO}/releases/latest");
         let unsaved = self.has_unsaved();
         let mut restart: Option<PathBuf> = None;
-        egui::Window::new("Check for Updates")
+        egui::Window::new(t("Check for Updates"))
             .open(&mut open)
             .collapsible(false)
             .default_width(420.0)
             .show(ctx, |ui| {
-                ui.label(format!("This is Goldstone {}.", current()));
+                ui.label(crate::i18n::tr(&format!(
+                    "This is Goldstone {}.",
+                    current()
+                )));
                 ui.add_space(4.0);
                 match self.updater.status.clone() {
                     Status::Idle | Status::Checking => {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label("Asking GitHub for the latest release…");
+                            ui.label(t("Asking GitHub for the latest release…"));
                         });
                     }
                     Status::UpToDate(tag) => {
                         ui.label(
-                            egui::RichText::new(format!("✓ This is the latest version ({tag})."))
-                                .color(egui::Color32::from_rgb(40, 150, 60)),
+                            egui::RichText::new(crate::i18n::tr(&format!(
+                                "✓ This is the latest version ({tag})."
+                            )))
+                            .color(egui::Color32::from_rgb(40, 150, 60)),
                         );
                     }
                     Status::Available(r) => {
                         ui.label(
-                            egui::RichText::new(format!("Goldstone {} is available.", r.tag))
-                                .strong(),
+                            egui::RichText::new(crate::i18n::tr(&format!(
+                                "Goldstone {} is available.",
+                                r.tag
+                            )))
+                            .strong(),
                         );
                         if !r.notes.trim().is_empty() {
                             egui::ScrollArea::vertical()
@@ -467,12 +476,18 @@ impl crate::app::GoldstoneApp {
                         ui.horizontal(|ui| {
                             let can = install_kind().is_some_and(|k| asset_for(&r, &k).is_some());
                             if ui
-                                .add_enabled(can, egui::Button::new(format!("Install {}", r.tag)))
+                                .add_enabled(
+                                    can,
+                                    egui::Button::new(crate::i18n::tr(&format!(
+                                        "Install {}",
+                                        r.tag
+                                    ))),
+                                )
                                 .clicked()
                             {
                                 self.updater.install(ctx, r.clone());
                             }
-                            if ui.button("Release Page").clicked() {
+                            if ui.button(t("Release Page")).clicked() {
                                 open_external(&r.page);
                             }
                         });
@@ -485,14 +500,14 @@ impl crate::app::GoldstoneApp {
                     }
                     Status::Installed(msg, path) => {
                         ui.label(
-                            egui::RichText::new(format!("✓ {msg}"))
+                            egui::RichText::new(crate::i18n::tr(&format!("✓ {msg}")))
                                 .color(egui::Color32::from_rgb(40, 150, 60)),
                         );
                         if unsaved {
-                            ui.label("Save your diagrams, then restart to use it.");
+                            ui.label(t("Save your diagrams, then restart to use it."));
                         }
                         if ui
-                            .add_enabled(!unsaved, egui::Button::new("Restart Now"))
+                            .add_enabled(!unsaved, egui::Button::new(t("Restart Now")))
                             .clicked()
                         {
                             restart = Some(path);
@@ -503,11 +518,11 @@ impl crate::app::GoldstoneApp {
                             egui::Label::new(egui::RichText::new(msg).monospace()).selectable(true),
                         );
                         ui.horizontal(|ui| {
-                            if ui.button("Open the Package").clicked() {
+                            if ui.button(t("Open the Package")).clicked() {
                                 open_external(&file.to_string_lossy());
                             }
                             if let Some(dir) = file.parent()
-                                && ui.button("Show Folder").clicked()
+                                && ui.button(t("Show Folder")).clicked()
                             {
                                 open_external(&dir.to_string_lossy());
                             }
@@ -518,10 +533,10 @@ impl crate::app::GoldstoneApp {
                             egui::RichText::new(e).color(egui::Color32::from_rgb(190, 30, 30)),
                         );
                         ui.horizontal(|ui| {
-                            if ui.button("Try Again").clicked() {
+                            if ui.button(t("Try Again")).clicked() {
                                 self.updater.check(ctx);
                             }
-                            if ui.button("Release Page").clicked() {
+                            if ui.button(t("Release Page")).clicked() {
                                 open_external(&page);
                             }
                         });

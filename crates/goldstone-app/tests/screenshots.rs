@@ -148,3 +148,17 @@ fn new_feature_screenshots() {
     h.run_steps(6);
     shoot(&mut h, "22-plot-latex-tab");
 }
+
+#[test]
+#[ignore = "renders with wgpu; run explicitly"]
+fn chinese_screenshots() {
+    goldstone_app::i18n::set_lang(goldstone_app::i18n::Lang::Zh);
+    let mut h = harness("mbpt2.gold");
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(3);
+    shoot(&mut h, "30-chinese");
+    h.get_by_label("视图").click();
+    h.run_steps(3);
+    shoot(&mut h, "31-chinese-menu");
+    goldstone_app::i18n::set_lang(goldstone_app::i18n::Lang::En);
+}
