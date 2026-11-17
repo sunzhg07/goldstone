@@ -328,6 +328,7 @@ pub struct GoldstoneApp {
     pub(crate) message: Option<String>,
     pub(crate) show_shortcuts: bool,
     pub(crate) show_about: bool,
+    pub(crate) show_licenses: bool,
     pub(crate) latex: LatexDialog,
     pub(crate) source: SourceState,
     confirm: Option<Pending>,
@@ -401,6 +402,7 @@ impl GoldstoneApp {
             message: None,
             show_shortcuts: false,
             show_about: false,
+            show_licenses: false,
             latex: LatexDialog::default(),
             source: SourceState {
                 text: String::new(),

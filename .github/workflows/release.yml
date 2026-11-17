@@ -32,6 +32,11 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
             libvulkan-dev imagemagick desktop-file-utils file
 
+      - name: Third-party licenses (embedded in the binary and shipped)
+        run: |
+          cargo fetch --locked
+          python3 packaging/third_party_licenses.py -o THIRD_PARTY_LICENSES.md
+
       - name: Build
         run: cargo build --release --locked -p goldstone
 
@@ -51,8 +56,8 @@ jobs:
 
           # Plain archive
           mkdir -p "goldstone-$V-linux-x86_64"
-          cp target/release/goldstone README.md LICENSE packaging/goldstone.desktop goldstone.png \
-            "goldstone-$V-linux-x86_64/"
+          cp target/release/goldstone README.md LICENSE THIRD_PARTY_LICENSES.md \
+            packaging/goldstone.desktop goldstone.png "goldstone-$V-linux-x86_64/"
           tar czf "dist/goldstone-$V-linux-x86_64.tar.gz" "goldstone-$V-linux-x86_64"
 
           # Debian package
@@ -64,6 +69,7 @@ jobs:
           cp packaging/goldstone.desktop deb/usr/share/applications/
           cp goldstone.png deb/usr/share/icons/hicolor/256x256/apps/
           cp LICENSE deb/usr/share/doc/goldstone/copyright
+          cp THIRD_PARTY_LICENSES.md deb/usr/share/doc/goldstone/
           cat > deb/DEBIAN/control <<EOF
           Package: goldstone
           Version: $DV
@@ -84,6 +90,8 @@ jobs:
           wget -q -O linuxdeploy \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy
+          mkdir -p AppDir/usr/share/doc/goldstone
+          cp LICENSE THIRD_PARTY_LICENSES.md AppDir/usr/share/doc/goldstone/
           export APPIMAGE_EXTRACT_AND_RUN=1
           ./linuxdeploy --appdir AppDir -e target/release/goldstone \
             -d packaging/goldstone.desktop -i goldstone.png --output appimage
@@ -104,6 +112,11 @@ jobs:
         with:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
+
+      - name: Third-party licenses (embedded in the binary and shipped)
+        run: |
+          cargo fetch --locked
+          python3 packaging/third_party_licenses.py -o THIRD_PARTY_LICENSES.md
 
       - name: Build (Apple Silicon and Intel)
         run: |
@@ -130,19 +143,19 @@ jobs:
           V="${GITHUB_REF_NAME}"
           mkdir -p dist Goldstone.app/Contents/MacOS Goldstone.app/Contents/Resources
           cp goldstone Goldstone.app/Contents/MacOS/
-          cp goldstone.icns Goldstone.app/Contents/Resources/
+          cp goldstone.icns LICENSE THIRD_PARTY_LICENSES.md Goldstone.app/Contents/Resources/
           sed "s/@VERSION@/${V#v}/g" packaging/Info.plist > Goldstone.app/Contents/Info.plist
           plutil -lint Goldstone.app/Contents/Info.plist
           # Ad-hoc signature (no Apple Developer certificate): the app runs
           # after "right click > Open" the first time.
           codesign --force --deep --sign - Goldstone.app
           mkdir dmg
-          cp -R Goldstone.app dmg/
+          cp -R Goldstone.app LICENSE THIRD_PARTY_LICENSES.md dmg/
           ln -s /Applications dmg/Applications
           hdiutil create -volname Goldstone -srcfolder dmg -ov -format UDZO \
             "dist/goldstone-$V-macos-universal.dmg"
           # The command-line tool on its own
-          tar czf "dist/goldstone-$V-macos-universal.tar.gz" goldstone README.md LICENSE
+          tar czf "dist/goldstone-$V-macos-universal.tar.gz" goldstone README.md LICENSE THIRD_PARTY_LICENSES.md
           ls -l dist
 
       - uses: actions/upload-artifact@v4
@@ -158,6 +171,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: Third-party licenses (embedded in the binary and shipped)
+        run: |
+          cargo fetch --locked
+          python packaging/third_party_licenses.py -o THIRD_PARTY_LICENSES.md
+
       - name: Build
         run: cargo build --release --locked -p goldstone
 
@@ -168,7 +186,7 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           $dir = "goldstone-$V-windows-x86_64"
           New-Item -ItemType Directory -Force $dir | Out-Null
-          Copy-Item target/release/goldstone.exe, README.md, LICENSE $dir
+          Copy-Item target/release/goldstone.exe, README.md, LICENSE, THIRD_PARTY_LICENSES.md $dir
           Compress-Archive -Path $dir -DestinationPath "dist/$dir.zip"
           Get-ChildItem dist
 
@@ -203,3 +221,7 @@ jobs:
               `sudo apt install ./goldstone_*.deb`), or `.tar.gz`.
 
             No LaTeX installation is needed. See docs/MANUAL.md for usage.
+
+            Goldstone is MIT-licensed. The packages include third-party software and fonts
+            under their own licenses: see THIRD_PARTY_LICENSES.md in each package,
+            `goldstone licenses`, or Help ▸ About in the editor.

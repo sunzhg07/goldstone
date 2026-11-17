@@ -2124,7 +2124,36 @@ impl GoldstoneApp {
                 ui.label(format!("Goldstone {}", env!("CARGO_PKG_VERSION")));
                 ui.label("Many-body diagrams: coupled cluster, IMSRG, MBPT.");
                 ui.weak("MIT license.");
+                ui.add_space(4.0);
+                ui.weak("Includes third-party software and fonts under their own licenses.");
+                if ui.button("Third-party licenses").clicked() {
+                    self.show_licenses = true;
+                }
             });
         self.show_about = open;
+        self.licenses_window(ctx);
+    }
+
+    /// The licenses and notices of everything compiled into the program.
+    fn licenses_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.show_licenses;
+        egui::Window::new("Third-party licenses")
+            .open(&mut open)
+            .default_size([640.0, 520.0])
+            .show(ctx, |ui| {
+                let lines: Vec<&str> = crate::THIRD_PARTY_LICENSES.lines().collect();
+                let row = ui.text_style_height(&egui::TextStyle::Monospace);
+                ScrollArea::both().auto_shrink([false, false]).show_rows(
+                    ui,
+                    row,
+                    lines.len(),
+                    |ui, range| {
+                        for line in &lines[range] {
+                            ui.label(RichText::new(*line).monospace().size(11.0));
+                        }
+                    },
+                );
+            });
+        self.show_licenses = open;
     }
 }

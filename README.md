@@ -196,4 +196,10 @@ Release packages are built by GitHub Actions
 
 ## License
 
-MIT
+Goldstone is MIT-licensed. The program includes third-party crates and
+fonts (New Computer Modern, Libertinus, DejaVu for labels; Ubuntu, Hack,
+Noto Emoji for the editor) under their own permissive licenses, listed
+with their notices in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md),
+in every release package, by `goldstone licenses`, and in Help ▸ About.
+Regenerate the file after changing dependencies:
+`python3 packaging/third_party_licenses.py -o THIRD_PARTY_LICENSES.md`.

@@ -35,6 +35,8 @@ enum Command {
     Edit { file: Option<PathBuf> },
     /// Print the keyboard and mouse reference (Markdown, as in docs/MANUAL.md).
     Keys,
+    /// Print the licenses of the third-party software and fonts in this program.
+    Licenses,
     /// Render diagrams to SVG, PDF, PNG, or TikZ (.tex standalone / .tikz picture).
     ///
     /// Inputs are .gold files, or SVG files written by Goldstone (their
@@ -110,6 +112,12 @@ enum Command {
     },
 }
 
+/// Prints to stdout; a closed pipe (`goldstone licenses | head`) is not an error.
+fn out(text: &str) {
+    use std::io::Write as _;
+    let _ = std::io::stdout().write_all(text.as_bytes());
+}
+
 fn parse_background(s: Option<&str>) -> Result<Option<goldstone_core::color::Color>, Vec<String>> {
     s.map(|c| {
         goldstone_core::color::Color::parse(c).map_err(|e| vec![format!("--background: {e}")])
@@ -182,7 +190,8 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
             return goldstone_app::run(file)
                 .map_err(|e| vec![format!("cannot open the editor: {e}")]);
         }
-        Command::Keys => print!("{}", goldstone_app::keys::manual_markdown()),
+        Command::Keys => out(&goldstone_app::keys::manual_markdown()),
+        Command::Licenses => out(goldstone_app::THIRD_PARTY_LICENSES),
         Command::Render {
             inputs,
             output,
