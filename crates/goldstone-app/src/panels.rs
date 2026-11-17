@@ -813,6 +813,64 @@ impl GoldstoneApp {
                     self.apply_color(name, fill);
                 }
             }
+            // The last color picked from the screen.
+            if let Some(hex) = self.picked.clone()
+                && let Ok(c) = Color::parse(&hex)
+            {
+                let (r, resp) =
+                    ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::click());
+                ui.painter().rect_filled(r, 2.0, to_c32(c));
+                ui.painter().rect_stroke(
+                    r,
+                    2.0,
+                    egui::Stroke::new(1.5, ACCENT),
+                    egui::StrokeKind::Inside,
+                );
+                let resp = resp.on_hover_text(format!(
+                    "{hex} (picked): click sets the stroke color, {} the fill",
+                    self.os.fill("{shift}click")
+                ));
+                if resp.clicked() {
+                    let fill = ui.input(|i| i.modifiers.shift);
+                    self.apply_color(&hex, fill);
+                }
+            }
+            let picking = self.picker.active();
+            let b = ui
+                .add_enabled(!picking, egui::Button::new(if picking { "Picking…" } else { "Pick" }))
+                .on_hover_text(format!(
+                    "Pick a color anywhere on the screen. Click: stroke color of the selection, {}: fill",
+                    self.os.fill("{shift}click")
+                ));
+            if b.clicked() {
+                let fill = ui.input(|i| i.modifiers.shift);
+                self.picker.start(ui.ctx(), fill);
+                self.message = Some(if cfg!(windows) {
+                    "Click anywhere on the screen to pick its color (Esc cancels)".into()
+                } else {
+                    "Click anywhere on the screen to pick its color".into()
+                });
+            }
+            if let Some(r) = self.picker.poll() {
+                match r {
+                    Ok([r, g, b]) => {
+                        let hex = format!("#{r:02x}{g:02x}{b:02x}");
+                        if self.selection.is_empty() {
+                            self.message = Some(format!(
+                                "Picked {hex}: select objects and click its swatch to use it"
+                            ));
+                        } else {
+                            self.apply_color(&hex, self.picker.fill);
+                            self.message = Some(format!(
+                                "Picked {hex} for the {}",
+                                if self.picker.fill { "fill" } else { "stroke" }
+                            ));
+                        }
+                        self.picked = Some(hex);
+                    }
+                    Err(e) => self.message = Some(format!("No color picked: {e}")),
+                }
+            }
             ui.separator();
             ui.label("Stroke");
             for (s, n) in STROKES {

@@ -26,7 +26,7 @@ The layout follows Inkscape:
 | Tabs | One tab per open diagram, above the canvas; each keeps its own undo history, selection and zoom. `*` marks unsaved changes. Click to switch (Ctrl+Tab, Ctrl+PageDown/PageUp), middle-click or × to close (Ctrl+W), + for a new diagram |
 | Canvas (center) | The diagram on a white page (the export area) with an optional grid. Right-click for a menu: commands for the clicked object or the selection, all tools, the active tool's options, view |
 | Dialogs (right) | **Fill & Stroke**: properties of the selection. **Objects**: every object with its id and coordinates, and the groups; click to select. **Align**: Align & Distribute. **Source**: the `.gold` text, editable live |
-| Palettes (bottom) | Click a color to set the stroke color of the selection (Shift+click: fill). Click a stroke to set it on selected lines and on new lines; *double* toggles double lines |
+| Palettes (bottom) | Click a color to set the stroke color of the selection (Shift+click: fill). **Pick** takes a color from anywhere on the screen (macOS: the system magnifier; Linux: the desktop's color picker; Windows: click the spot, Esc cancels); it is applied to the selection and kept as an extra swatch. Click a stroke to set it on selected lines and on new lines; *double* toggles double lines |
 | Status bar | What is selected; the object under the pointer (or the one selected object) with its kind, id and coordinates; hints; errors; pointer position and zoom |
 
 The canvas is drawn by the same renderer as the PDF/SVG export, so what

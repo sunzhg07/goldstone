@@ -369,6 +369,9 @@ pub struct GoldstoneApp {
     pub(crate) plot: crate::plot_dialog::PlotDialog,
     pub(crate) code: crate::plot_dialog::CodeState,
     pub(crate) templates: crate::templates_ui::TemplatesState,
+    pub(crate) picker: crate::pick::Picker,
+    /// The last color picked from the screen (`#rrggbb`).
+    pub(crate) picked: Option<String>,
     pub(crate) source: SourceState,
     confirm: Option<Pending>,
     pub(crate) focus_text_content: bool,
@@ -456,6 +459,8 @@ impl GoldstoneApp {
             plot: Default::default(),
             code: Default::default(),
             templates: Default::default(),
+            picker: Default::default(),
+            picked: None,
             source: SourceState {
                 text: String::new(),
                 for_doc: None,

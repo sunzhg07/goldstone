@@ -2015,13 +2015,18 @@ dependencies = [
 name = "goldstone-app"
 version = "0.1.0"
 dependencies = [
+ "block2 0.6.2",
  "eframe",
  "egui",
  "egui_kittest",
  "goldstone-core",
  "goldstone-export",
  "image",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
  "rfd",
+ "windows-sys 0.59.0",
+ "zbus",
 ]
 
 [[package]]

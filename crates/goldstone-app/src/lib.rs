@@ -6,6 +6,7 @@ pub mod icons;
 pub mod keys;
 mod menus;
 mod panels;
+mod pick;
 mod plot_dialog;
 mod templates_ui;
 mod view;
