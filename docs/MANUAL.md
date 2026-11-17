@@ -296,6 +296,22 @@ one step.
 
 The file format is described in [DESIGN.md §4](DESIGN.md#4-file-format-gold-toml).
 
+## Updates
+
+**Help ▸ Check for Updates…** asks GitHub for the latest release (only
+when you choose it; nothing is sent otherwise). If there is a newer one,
+**Install** downloads it with the system's `curl` and replaces this copy:
+
+| Installed from | Update |
+|---|---|
+| macOS `.dmg` (Goldstone.app) | the app is replaced from the new disk image |
+| AppImage | the AppImage file is replaced |
+| `.tar.gz` / `.zip` | the `goldstone` program is replaced |
+| Debian package | the new `.deb` is saved in Downloads; install it with `sudo apt install ./goldstone_….deb` |
+
+Then **Restart Now** (after saving your diagrams) reopens your files in
+the new version.
+
 ## Command line
 
 ```sh

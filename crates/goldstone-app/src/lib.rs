@@ -9,6 +9,7 @@ mod panels;
 mod pick;
 mod plot_dialog;
 mod templates_ui;
+mod update;
 mod view;
 
 use std::path::PathBuf;

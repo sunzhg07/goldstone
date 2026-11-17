@@ -135,6 +135,7 @@ pub enum Action {
     Templates,
     AddTemplate,
     Shortcuts,
+    CheckUpdates,
 }
 
 /// Criteria for Edit ▸ Select Same.

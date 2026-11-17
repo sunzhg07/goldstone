@@ -559,6 +559,7 @@ impl GoldstoneApp {
             });
             ui.menu_button("Help", |ui| {
                 item(ui, None, "Keyboard and Mouse", Action::Shortcuts);
+                item(ui, None, "Check for Updates…", Action::CheckUpdates);
                 if ui.button("About Goldstone").clicked() {
                     about = true;
                     ui.close();

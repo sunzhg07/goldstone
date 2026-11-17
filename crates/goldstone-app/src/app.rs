@@ -370,6 +370,7 @@ pub struct GoldstoneApp {
     pub(crate) code: crate::plot_dialog::CodeState,
     pub(crate) templates: crate::templates_ui::TemplatesState,
     pub(crate) picker: crate::pick::Picker,
+    pub(crate) updater: crate::update::Updater,
     /// The last color picked from the screen (`#rrggbb`).
     pub(crate) picked: Option<String>,
     pub(crate) source: SourceState,
@@ -460,6 +461,7 @@ impl GoldstoneApp {
             code: Default::default(),
             templates: Default::default(),
             picker: Default::default(),
+            updater: Default::default(),
             picked: None,
             source: SourceState {
                 text: String::new(),
@@ -490,7 +492,26 @@ impl GoldstoneApp {
         if let Some(p) = path {
             app.open_path(&p);
         }
+        crate::update::cleanup();
         app
+    }
+
+    /// Whether any tab has unsaved changes.
+    pub(crate) fn has_unsaved(&self) -> bool {
+        self.any_dirty().is_some()
+    }
+
+    /// Files of the open tabs.
+    pub(crate) fn open_files(&self) -> Vec<PathBuf> {
+        (0..self.pages.len())
+            .filter_map(|i| self.tab_path(i).map(Path::to_path_buf))
+            .collect()
+    }
+
+    /// Closes the window without asking.
+    pub(crate) fn quit_now(&mut self, ctx: &egui::Context) {
+        self.allow_close = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
     /// Opens more files, each in its own tab.
@@ -1220,6 +1241,15 @@ impl GoldstoneApp {
             Action::ShowSource => self.tab = Tab::Source,
             Action::ShowCode => self.tab = Tab::Code,
             Action::Shortcuts => self.show_shortcuts = true,
+            Action::CheckUpdates => {
+                self.updater.open = true;
+                if !matches!(
+                    self.updater.status,
+                    crate::update::Status::Checking | crate::update::Status::Installing(_)
+                ) {
+                    self.updater.check(ctx);
+                }
+            }
         }
     }
 
@@ -2849,6 +2879,7 @@ impl eframe::App for GoldstoneApp {
         self.latex_window(&ctx);
         self.plot_window(&ctx);
         self.templates_window(&ctx);
+        self.update_window(&ctx);
         self.add_template_window(&ctx);
 
         let interacting =
