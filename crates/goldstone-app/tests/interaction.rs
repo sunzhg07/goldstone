@@ -495,3 +495,18 @@ fn resize_handles_stretch_the_selection() {
     assert_eq!(size[1], 20.0, "height unchanged");
     assert!((s.at.unwrap()[0] - 40.0).abs() < 1.0, "left side stays");
 }
+
+#[test]
+fn templates_menu_inserts_a_shape() {
+    let mut h = harness();
+    h.get_by_label("Templates").click();
+    h.run_steps(3);
+    h.get_by_label("Stars and Banners").hover();
+    h.run_steps(3);
+    h.get_by_label("5-Point Star").click();
+    h.run_steps(3);
+    let d = h.state().document();
+    assert_eq!(d.shapes.len(), 1);
+    assert_eq!(d.shapes[0].points.as_ref().map(|p| p.len()), Some(10));
+    assert_eq!(h.state().selected().len(), 1);
+}

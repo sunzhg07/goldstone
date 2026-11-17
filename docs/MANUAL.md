@@ -181,6 +181,38 @@ goldstone plot 'sin(x); cos(x)' --x=-2pi:2pi -o fig.pdf
 goldstone plot 'tan(x)' --x=-pi:pi --y=-5:5 --size 240x160 -o tan.svg
 ```
 
+## Templates
+
+The **Templates** menu holds a library of ready-made objects, by category:
+
+| Category | Contents |
+|---|---|
+| Basic Shapes | rectangle, rounded rectangle, square, ellipse, circle, triangles, parallelogram, trapezoid, diamond, regular polygons, plus, frame, donut, heart, moon, cloud, lightning bolt, cylinder, cube |
+| Block Arrows | right, left, up, down, left-right, up-down, quad, notched, pentagon, chevron, circular |
+| Stars and Banners | 4- to 32-point stars, explosion, wave |
+| Flowchart | process, alternate process, decision, data, predefined process, internal storage, document, terminator, preparation, manual input and operation, connectors, card, punched tape, summing junction, or, collate, sort, extract, merge, delay, stored data, display |
+| Callouts | rectangular, rounded, oval, thought bubble, line callout |
+| Equation Shapes | plus, minus, multiply, divide, equal, not equal |
+| Many-Body Diagrams | MBPT(2) and CC energies, T1/T2/T3 amplitudes, one- and two-body operators, ladders, ring, Fock lines, quadratic terms, IMSRG(2) flows (editable in the LaTeX tab) |
+| Feynman Diagrams | fermion, photon, gluon and scalar propagators, QED vertex, s- and t-channel, Compton scattering, self-energy, vacuum polarization, tadpole |
+
+Pick one from its submenu to insert it at the center of the view, or use
+**Browse Templates…** (also Insert ▸ Templates…) to search and see
+thumbnails; right-click a thumbnail to open it in a new tab.
+
+**Add Selection to Templates…** (Templates menu, or right-click the
+selection) keeps the selected objects as your own template, with a name
+and a category. Your templates are `.gold` files in the templates folder
+(**Open Templates Folder**): `~/Library/Application Support/Goldstone/templates`
+on macOS, `%APPDATA%\Goldstone\templates` on Windows,
+`~/.config/goldstone/templates` on Linux; subfolders are categories. Copy
+files there to share templates. Right-click one of your templates in the
+browser to delete it.
+
+`goldstone templates` lists the built-in templates; `goldstone templates
+-o sheet.pdf` draws them all on one sheet; `goldstone templates --name
+"5-Point Star" -o star.gold` writes one.
+
 ## Selecting and editing
 
 - **S** (Select tool): click to select, Shift+click to add or remove,

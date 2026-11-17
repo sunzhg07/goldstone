@@ -363,7 +363,7 @@ pub fn group_everything<'a>(doc: &'a mut Document, id: &str) -> &'a mut crate::m
     for (s, i) in doc.shapes.iter_mut().zip(&ids.shapes) {
         s.id.get_or_insert_with(|| i.clone());
     }
-    let members = doc
+    let members: Vec<String> = doc
         .vertices
         .iter()
         .map(|v| v.id.clone())
@@ -372,8 +372,13 @@ pub fn group_everything<'a>(doc: &'a mut Document, id: &str) -> &'a mut crate::m
         .chain(ids.axes)
         .chain(ids.shapes)
         .collect();
+    // The group's id must differ from every object's.
+    let id = std::iter::once(id.to_string())
+        .chain((2..).map(|n| format!("{id}{n}")))
+        .find(|c| !members.contains(c))
+        .expect("infinite");
     doc.groups = vec![crate::model::Group {
-        id: id.into(),
+        id,
         members,
         latex: None,
         plot: None,

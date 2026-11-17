@@ -402,6 +402,10 @@ impl GoldstoneApp {
         ui.separator();
         m.item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
         m.item(ui, None, "Function Plot…", Action::FunctionPlot);
+        if any {
+            m.item(ui, None, "Add Selection to Templates…", Action::AddTemplate);
+        }
+        ui.menu_button("Templates", |ui| self.templates_menu(ui));
         if let Some(a) = m.chosen {
             self.do_action(a, &ctx);
         }

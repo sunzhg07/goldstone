@@ -326,9 +326,12 @@ mod tests {
             .unwrap()
             .doc;
         let p = crate::plot::from_source(&crate::model::PlotSource::default()).unwrap();
+        d.shapes.extend(p.doc.shapes.clone());
+        d.texts.extend(p.doc.texts.clone());
         d.groups.extend(p.doc.groups.clone());
         let text = save(&d, None);
         let back = parse(&text).unwrap();
+        crate::scene::build(&back).expect("valid: the group id is unique");
         assert_eq!(
             back.groups[0].latex.as_deref(),
             Some(r"E2 = \frac{1}{4} V_{ijab} T_{abij}")

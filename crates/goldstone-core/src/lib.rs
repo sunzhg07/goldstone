@@ -13,6 +13,7 @@ pub mod plot;
 pub mod quality;
 pub mod scene;
 pub mod shapes;
+pub mod templates;
 pub mod tex;
 
 pub use kurbo;

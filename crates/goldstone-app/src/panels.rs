@@ -440,7 +440,9 @@ impl GoldstoneApp {
             ui.menu_button("Insert", |ui| {
                 item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
                 item(ui, None, "Function Plot…", Action::FunctionPlot);
+                item(ui, None, "Templates…", Action::Templates);
             });
+            ui.menu_button("Templates", |ui| self.templates_menu(ui));
             ui.menu_button("Edit", |ui| {
                 item(ui, None, "Undo", Action::Undo);
                 item(ui, None, "Redo", Action::Redo);

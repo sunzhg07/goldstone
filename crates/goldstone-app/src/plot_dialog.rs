@@ -6,7 +6,6 @@ use egui::{Color32, DragValue, RichText, TextEdit, Ui};
 use goldstone_core::kurbo::Vec2;
 use goldstone_core::model::{Document, PlotSource};
 use goldstone_core::plot;
-use goldstone_core::scene::ObjRef;
 
 use crate::app::GoldstoneApp;
 use crate::doc_ops;
@@ -283,7 +282,7 @@ impl GoldstoneApp {
         }
         let mut redraw: Option<Result<Document, String>> = None;
         if grp.latex.is_some() {
-            ui.label(RichText::new(format!("Diagram {} from LaTeX", grp.id)).strong());
+            ui.label(RichText::new(format!("Diagram from LaTeX (group {})", grp.id)).strong());
             let r = ui.add(
                 TextEdit::multiline(&mut self.code.latex)
                     .code_editor()
@@ -299,7 +298,7 @@ impl GoldstoneApp {
                 );
             }
         } else {
-            ui.label(RichText::new(format!("Function plot {}", grp.id)).strong());
+            ui.label(RichText::new(format!("Function plot (group {})", grp.id)).strong());
             if plot_form(ui, &mut self.code.plot) {
                 redraw = Some(plot::from_source(&self.code.plot).map(|p| {
                     self.code.warnings = p.warnings;
@@ -329,11 +328,5 @@ impl GoldstoneApp {
         }
         ui.add_space(8.0);
         ui.weak("Ungroup the drawing to edit its objects one by one (it then forgets its source).");
-        let n = self
-            .selection
-            .iter()
-            .filter(|o| matches!(o, ObjRef::Edge(_) | ObjRef::Shape(_)))
-            .count();
-        ui.weak(format!("{n} lines and shapes"));
     }
 }

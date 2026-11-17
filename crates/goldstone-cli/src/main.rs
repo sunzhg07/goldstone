@@ -110,6 +110,18 @@ enum Command {
         #[arg(long)]
         background: Option<String>,
     },
+    /// List the built-in templates, render them all on one sheet
+    /// (`-o sheet.pdf`), or write one (`--name "5-Point Star" -o star.gold`).
+    Templates {
+        /// The template to write (as listed).
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Background color (e.g. white); default transparent.
+        #[arg(long)]
+        background: Option<String>,
+    },
     /// Plot functions of x with axes, e.g. "sin(x); cos(x)" or
     /// "\\frac{1}{1+x^2}" (plain or LaTeX notation; several separated by ;).
     ///
@@ -371,6 +383,43 @@ fn run(cli: Cli) -> Result<(), Vec<String>> {
                 io::to_toml(&drawn.doc)
             );
             write_doc(&drawn.doc, &text, output, dpi, bg)?;
+        }
+        Command::Templates {
+            name,
+            output,
+            background,
+        } => {
+            let bg = parse_background(background.as_deref())?;
+            let all = goldstone_core::templates::builtin();
+            match (name, output) {
+                (None, None) => {
+                    let mut text = String::new();
+                    for cat in goldstone_core::templates::CATEGORIES {
+                        text.push_str(&format!("{cat}\n"));
+                        for t in all.iter().filter(|t| t.category == *cat) {
+                            text.push_str(&format!("  {}\n", t.name));
+                        }
+                    }
+                    out(&text);
+                }
+                (None, Some(o)) => {
+                    let doc = goldstone_core::templates::sheet(&all);
+                    let text = io::to_toml(&doc);
+                    write_doc(&doc, &text, Some(o), 150.0, bg)?;
+                }
+                (Some(n), o) => {
+                    let t = all
+                        .iter()
+                        .find(|t| t.name.eq_ignore_ascii_case(&n))
+                        .ok_or_else(|| {
+                            vec![format!(
+                                "no template {n:?}; `goldstone templates` lists them"
+                            )]
+                        })?;
+                    let text = io::to_toml(&t.doc);
+                    write_doc(&t.doc, &text, o, 300.0, bg)?;
+                }
+            }
         }
         Command::Plot {
             functions,

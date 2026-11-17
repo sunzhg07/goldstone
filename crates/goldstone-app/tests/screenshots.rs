@@ -120,3 +120,31 @@ fn icon_sheet() {
     }
     sheet.save(PathBuf::from(dir).join("10-icons.png")).unwrap();
 }
+
+#[test]
+#[ignore = "renders with wgpu; run explicitly"]
+fn new_feature_screenshots() {
+    let mut h = harness("mbpt2.gold");
+    // Templates window.
+    h.get_by_label("Insert").click();
+    h.run_steps(2);
+    h.get_by(|n| n.label().is_some_and(|l| l.starts_with("Templates…")))
+        .click();
+    for _ in 0..15 {
+        h.run_steps(2);
+    }
+    shoot(&mut h, "20-templates");
+    // A second tab with a plot, the LaTeX tab, a right-click menu.
+    h.key_press(Key::Escape);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::N);
+    h.run_steps(3);
+    h.get_by_label("Insert").click();
+    h.run_steps(2);
+    h.get_by(|n| n.label().is_some_and(|l| l.starts_with("Function Plot…")))
+        .click();
+    h.run_steps(3);
+    shoot(&mut h, "21-plot-dialog");
+    h.get_all_by_label("Insert").last().unwrap().click();
+    h.run_steps(6);
+    shoot(&mut h, "22-plot-latex-tab");
+}

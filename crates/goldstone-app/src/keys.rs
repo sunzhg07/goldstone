@@ -132,6 +132,8 @@ pub enum Action {
     ShowCode,
     FromLatex,
     FunctionPlot,
+    Templates,
+    AddTemplate,
     Shortcuts,
 }
 

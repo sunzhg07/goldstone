@@ -93,6 +93,13 @@ A diagram from LaTeX or a plot remembers its source: select it and edit
 the equation in the **LaTeX** tab of the right panel; it is redrawn as you
 type.
 
+### Templates
+
+A built-in library: basic shapes, block arrows, stars, flowchart symbols,
+callouts, equation shapes, many-body (MBPT, CC, IMSRG) and Feynman
+diagrams; save your own from the selection. Templates ▸ … in the editor,
+or `goldstone templates -o sheet.pdf` for an overview.
+
 ### A whole document
 
 ```sh
@@ -180,6 +187,7 @@ goldstone render figs/*.gold -f tikz --out-dir paper/figs
 goldstone render fig.gold -o slide.png --background white --dpi 600
 goldstone latex '…' -o eq.pdf                # diagram of an equation
 goldstone plot 'sin(x)' --x=-pi:pi -o f.pdf  # function plot
+goldstone templates -o sheet.pdf             # all built-in templates
 goldstone paper.tex                          # every equation of a document
 goldstone ls fig.gold                        # objects with ids and coordinates
 goldstone check figs/*.gold                  # validate, typeset all labels

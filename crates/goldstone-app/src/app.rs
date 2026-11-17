@@ -368,6 +368,7 @@ pub struct GoldstoneApp {
     pub(crate) latex: LatexDialog,
     pub(crate) plot: crate::plot_dialog::PlotDialog,
     pub(crate) code: crate::plot_dialog::CodeState,
+    pub(crate) templates: crate::templates_ui::TemplatesState,
     pub(crate) source: SourceState,
     confirm: Option<Pending>,
     pub(crate) focus_text_content: bool,
@@ -454,6 +455,7 @@ impl GoldstoneApp {
             latex: LatexDialog::default(),
             plot: Default::default(),
             code: Default::default(),
+            templates: Default::default(),
             source: SourceState {
                 text: String::new(),
                 for_doc: None,
@@ -1170,6 +1172,8 @@ impl GoldstoneApp {
             Action::Quit => self.request(Pending::Quit, ctx),
             Action::FromLatex => self.latex.open = true,
             Action::FunctionPlot => self.plot.open = true,
+            Action::Templates => self.templates.browse = true,
+            Action::AddTemplate => self.start_add_template(),
             Action::Nudge { dx, dy, step } => {
                 let s = match step {
                     Step::Normal => 2.0,
@@ -1331,6 +1335,12 @@ impl GoldstoneApp {
             self.latex.text.trim(),
             new.iter().filter(|o| matches!(o, ObjRef::Edge(_))).count()
         ));
+    }
+
+    /// The document point at the center of the canvas.
+    pub(crate) fn view_center(&self) -> Point {
+        self.view
+            .to_doc(self.canvas_rect, self.canvas_rect.center())
     }
 
     /// Adds `part` to the right of the drawing and selects it.
@@ -2833,6 +2843,8 @@ impl eframe::App for GoldstoneApp {
         self.about_window(&ctx);
         self.latex_window(&ctx);
         self.plot_window(&ctx);
+        self.templates_window(&ctx);
+        self.add_template_window(&ctx);
 
         let interacting =
             ctx.input(|i| i.pointer.any_down()) || ctx.memory(|m| m.focused().is_some());
