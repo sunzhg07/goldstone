@@ -16,7 +16,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+    # Reuses compiled dependencies from earlier runs (saved on main).
+    - uses: Swatinem/rust-cache@v2
+      with:
+        save-if: ${{ github.ref == 'refs/heads/main' }}
     - name: Build
-      run: cargo build --verbose
+      run: cargo build
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test
