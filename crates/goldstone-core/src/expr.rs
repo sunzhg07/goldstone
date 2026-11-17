@@ -34,7 +34,7 @@ const DY: f64 = 60.0; // between levels (operators above one another)
 const EXT: f64 = 34.0; // length of external lines
 const TERM_GAP: f64 = 16.0; // between terms (besides room for labels)
 
-const INTERACTIONS: &[&str] = &["V", "W", "v", "w", "g", "H", "F", "f", "U", "u"];
+const INTERACTIONS: &[&str] = &["V", "W", "v", "w", "g", "H", "F", "f", "U", "u", "\\Gamma"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -513,16 +513,24 @@ fn parse_occupation(p: &mut P) -> Result<Option<Vec<(String, bool)>>, String> {
 /// `n_a \bar n_b - \bar n_a n_b`, `(1 - n_a - n_b)` gives `\bar n_a \bar n_b - n_a n_b`.
 fn resolve_occupations(out: Vec<(Prod, usize)>) -> Vec<Term> {
     // IMSRG notation: occupation factors, or the Greek operators of IMSRG
-    // papers (η, Γ, Ω, χ); then indices are general orbitals.
+    // papers (η, Γ, Ω, χ) with orbitals that are not CC letters (p, q, 1,
+    // 2, …); then indices are general orbitals. With only a–h / i–n, a
+    // Greek name is just a name: \Gamma_{ijab} \Gamma_{abij} is MBPT(2).
     let imsrg_name = |t: &Tensor| {
         let b = base_name(&t.name);
         ["\\eta", "\\Gamma", "\\Omega", "\\chi", "\\Xi", "\\Theta"]
             .iter()
             .any(|g| b.starts_with(g))
     };
+    let cc_letter = |i: &String| matches!(i.chars().next(), Some('a'..='n'));
+    let all_cc = out.iter().all(|(pr, _)| {
+        pr.tensors
+            .iter()
+            .all(|t| t.bra.iter().chain(&t.ket).all(cc_letter))
+    });
     let general = out
         .iter()
-        .any(|(pr, _)| !pr.occ.is_empty() || pr.tensors.iter().any(imsrg_name));
+        .any(|(pr, _)| !pr.occ.is_empty() || (!all_cc && pr.tensors.iter().any(imsrg_name)));
     // Group the products of one written term with the same operators.
     let mut groups: Vec<(String, Vec<(Prod, usize)>)> = Vec::new();
     for (pr, row) in out {
@@ -2433,6 +2441,29 @@ mod tests {
             from_latex("E = V_{mnef} T_{ijab}").is_err(),
             "nothing valid is an error"
         );
+    }
+
+    #[test]
+    fn gamma_is_just_a_name_with_cc_indices() {
+        // MBPT(2) with Γ instead of V: the same diagram, Γ as the label.
+        let v = from_latex(r"E = \frac{1}{4} \sum_{ijab} V_{ijab} V_{abij}")
+            .unwrap()
+            .doc;
+        let g = from_latex(r"E = \frac{1}{4} \sum_{ijab} \Gamma_{ijab} \Gamma_{abij}")
+            .unwrap()
+            .doc;
+        let classes = |d: &Document| {
+            let mut c: Vec<_> = d.edges.iter().map(|e| (e.class.clone(), e.arrow)).collect();
+            c.sort_by_key(|x| format!("{x:?}"));
+            c
+        };
+        assert_eq!(classes(&v), classes(&g));
+        assert!(
+            g.edges
+                .iter()
+                .any(|e| e.label.as_deref() == Some("$\\Gamma$"))
+        );
+        assert!(from_latex(r"E = \Gamma_{ijab} T_{abij}").is_ok());
     }
 
     #[test]
