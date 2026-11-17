@@ -18,6 +18,10 @@ pub mod defaults {
     pub const DASH: [f64; 2] = [4.0, 3.0];
     pub const DOT_GAP: f64 = 3.0;
     pub const DOUBLE_SEP: f64 = 2.5;
+    pub const EDGE_TICK_SPACING: f64 = 6.0;
+    pub const EDGE_TICK_LENGTH: f64 = 5.0;
+    /// Distance between the bars of a double or triple mark.
+    pub const MARK_GAP: f64 = 2.5;
     pub const ARROW_POS: f64 = 0.5;
     pub const ARROW_LENGTH: f64 = 7.0;
     pub const ARROW_WIDTH: f64 = 5.6;
@@ -703,6 +707,19 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
             0.0
         };
         let extra_offset = extra_offset + double_sep / 2.0;
+        let decorated =
+            e.ticks.or(st.ticks).unwrap_or(false) || e.marks.or(st.marks).unwrap_or(0) > 0;
+        let extra_offset = if decorated {
+            extra_offset.max(
+                double_sep / 2.0
+                    + e.tick_length
+                        .or(st.tick_length)
+                        .unwrap_or(d::EDGE_TICK_LENGTH)
+                        / 2.0,
+            )
+        } else {
+            extra_offset
+        };
         // The center line(s): the base path, or two copies offset by half
         // the separation on either side. Every stroke style is drawn along
         // each of them.
@@ -762,6 +779,69 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
         };
         for p in paths {
             ctx.push_path(id, layer, p, Some(spec.clone()), None);
+        }
+
+        // Ticks along the line and marks at one position: short bars across
+        // the line, as long as the line is wide (also across double lines).
+        let ticks = e.ticks.or(st.ticks).unwrap_or(false);
+        let marks = e.marks.or(st.marks).unwrap_or(0);
+        if ticks || marks > 0 {
+            if marks > 3 {
+                ctx.errors
+                    .push(format!("{what}: `marks` must be 0, 1, 2 or 3, got {marks}"));
+            }
+            let tl = ctx.positive(
+                e.tick_length
+                    .or(st.tick_length)
+                    .unwrap_or(d::EDGE_TICK_LENGTH),
+                "tick_length",
+                &what,
+            );
+            let half = tl / 2.0 + double_sep / 2.0;
+            let mut bars = BezPath::new();
+            let mut bar = |s: f64| {
+                let (q, t) = al.eval(s.clamp(0.0, len));
+                let n = left_normal(t);
+                bars.move_to(q + n * half);
+                bars.line_to(q - n * half);
+            };
+            if ticks {
+                let sp = ctx.positive(
+                    e.tick_spacing
+                        .or(st.tick_spacing)
+                        .unwrap_or(d::EDGE_TICK_SPACING),
+                    "tick_spacing",
+                    &what,
+                );
+                let n = (len / sp).round().max(1.0) as usize;
+                for k in 0..n {
+                    let at = len * (k as f64 + 0.5) / n as f64;
+                    // Leave the arrowhead free.
+                    if arrow == ArrowDir::None || (at - arrow_pos * len).abs() > alen / 2.0 + 1.0 {
+                        bar(at);
+                    }
+                }
+            }
+            if marks > 0 {
+                // Default: the middle, or a quarter when the arrow is there.
+                let default_pos = if arrow != ArrowDir::None && (arrow_pos - 0.5).abs() < 0.15 {
+                    0.25
+                } else {
+                    0.5
+                };
+                let pos = ctx.fraction(
+                    e.mark_pos.or(st.mark_pos).unwrap_or(default_pos),
+                    "mark_pos",
+                    &what,
+                );
+                let m = marks.min(3) as f64;
+                for k in 0..marks.min(3) {
+                    bar(pos * len + (k as f64 - (m - 1.0) / 2.0) * d::MARK_GAP);
+                }
+            }
+            let mut tick_spec = plain_stroke(color, width);
+            tick_spec.cap = Cap::Butt;
+            ctx.push_path(id, layer, bars, Some(tick_spec), None);
         }
 
         if arrow != ArrowDir::None {
@@ -944,6 +1024,31 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn ticks_and_marks() {
+        let src = "format = 1\n[[vertex]]\nid = \"a\"\nat = [0, 0]\n[[vertex]]\nid = \"b\"\nat = [60, 0]\n\
+                   [[edge]]\nfrom = \"a\"\nto = \"b\"\nticks = true\ntick_spacing = 6\nmarks = 2\n";
+        let scene = build(&crate::io::parse(src).unwrap()).unwrap();
+        let bars = scene
+            .items
+            .iter()
+            .filter_map(|i| match &i.mark {
+                Mark::Path(p) => Some(
+                    p.path
+                        .elements()
+                        .iter()
+                        .filter(|e| matches!(e, kurbo::PathEl::MoveTo(_)))
+                        .count(),
+                ),
+                _ => None,
+            })
+            .max()
+            .unwrap();
+        assert_eq!(bars, 10 + 2, "ten ticks, two marks");
+        let bad = src.replace("marks = 2", "marks = 7");
+        assert!(build(&crate::io::parse(&bad).unwrap()).is_err());
+    }
 
     #[test]
     fn every_stroke_can_be_double() {

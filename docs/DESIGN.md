@@ -206,6 +206,8 @@ above right of the vertex).
 | `from`, `to` | vertex ids (equal ids give a loop) |
 | `stroke` | `plain`, `dashed`, `dotted`, `wavy`, `curly`, `zigzag` |
 | `double` | bool, for any stroke and line shape; `double_sep` (pt): distance between the two lines |
+| `ticks` | bool: short bars across the line, evenly spaced (skipping the arrowhead); `tick_spacing` (pt, fitted to the length), `tick_length` (pt) |
+| `marks` | 0–3 bars across the line at `mark_pos` (0–1; default the middle, or a quarter when the arrow is in the middle); length `tick_length` |
 | `bend` | degrees (an arc through both endpoints); mutually exclusive with `controls` |
 | `controls` | `[[x, y], [x, y]]`, cubic Bézier control points |
 | `loop` | `{ radius, angle }`, used when `from == to` |
@@ -617,6 +619,10 @@ Align & Distribute.
   up, holes down), aligns vertices over their partners (trying vertex
   permutations), spreads parallel lines into arcs and leans external lines
   away from internal ones. Output is a plain `.gold` document.
+  The parser multiplies out parentheses, drops permutation operators,
+  reads `\langle pq||rs\rangle`, and chooses the reading of each
+  `X_{..}^{..}` (by search over swaps) that makes contractions consistent
+  and external lines agree across terms.
 - **Coordinates**: rulers, an id/coordinate overlay (I), hover info in the
   status bar, and `goldstone ls`.
 - egui moves keyboard focus with Tab and the arrow keys; while no widget

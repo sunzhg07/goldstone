@@ -1,0 +1,79 @@
+# Lines with ticks (evenly spaced bars along the line) and marks
+# (1–3 bars at one position). Both work on any stroke and line shape.
+format = 1
+
+[[vertex]]
+id = "a1"
+at = [0, 0]
+[[vertex]]
+id = "b1"
+at = [80, 0]
+[[edge]]
+from = "a1"
+to = "b1"
+ticks = true
+label = "ticks"
+
+[[vertex]]
+id = "a2"
+at = [0, -25]
+[[vertex]]
+id = "b2"
+at = [80, -25]
+[[edge]]
+from = "a2"
+to = "b2"
+ticks = true
+tick_spacing = 10
+tick_length = 8
+double = true
+label = "double, spacing 10, length 8"
+
+[[vertex]]
+id = "a3"
+at = [0, -55]
+[[vertex]]
+id = "b3"
+at = [80, -55]
+[[edge]]
+from = "a3"
+to = "b3"
+marks = 1
+arrow = "forward"
+label = "1 mark, arrow"
+
+[[vertex]]
+id = "a4"
+at = [0, -80]
+[[vertex]]
+id = "b4"
+at = [80, -80]
+[[edge]]
+from = "a4"
+to = "b4"
+marks = 2
+mark_pos = 0.5
+stroke = "dashed"
+label = "2 marks, dashed"
+
+[[vertex]]
+id = "c"
+at = [120, -60]
+kind = "dot"
+[[vertex]]
+id = "e"
+at = [180, -60]
+kind = "dot"
+[[edge]]
+from = "c"
+to = "e"
+bend = 70
+ticks = true
+arrow = "forward"
+label = "arc"
+[[edge]]
+from = "c"
+to = "e"
+bend = -70
+marks = 3
+arrow = "forward"

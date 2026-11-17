@@ -37,6 +37,7 @@ const KINDS: [(VertexKind, &str); 6] = [
     (VertexKind::Circle, "circle"),
     (VertexKind::Square, "square"),
 ];
+const MARKS: [(u32, &str); 4] = [(0, "none"), (1, "1 bar"), (2, "2 bars"), (3, "3 bars")];
 const SIDES: [(Side, &str); 2] = [(Side::Left, "left"), (Side::Right, "right")];
 const ANCHORS: [(Anchor, &str); 9] = [
     (Anchor::Center, "center"),
@@ -826,6 +827,19 @@ impl GoldstoneApp {
                     self.doc.edges[i].double = (!on).then_some(true);
                 }
             }
+            let ticked =
+                !edges.is_empty() && edges.iter().all(|&i| self.doc.edges[i].ticks == Some(true));
+            if ui
+                .selectable_label(ticked, "ticks")
+                .on_hover_text(
+                    "Ticks along the selected edges on/off (spacing and marks: Fill & Stroke)",
+                )
+                .clicked()
+            {
+                for &i in &edges {
+                    self.doc.edges[i].ticks = (!ticked).then_some(true);
+                }
+            }
             let mut g = edges
                 .first()
                 .and_then(|&i| self.doc.edges[i].double_sep)
@@ -1292,6 +1306,55 @@ impl GoldstoneApp {
                     mx!(double_sep),
                 );
             }
+            flag(
+                ui,
+                "Ticks",
+                &mut e.ticks,
+                st.ticks.unwrap_or(false),
+                mx!(ticks),
+            );
+            if e.ticks.or(st.ticks).unwrap_or(false) || mx!(ticks) {
+                num(
+                    ui,
+                    "Tick spacing (pt)",
+                    &mut e.tick_spacing,
+                    st.tick_spacing.unwrap_or(d::EDGE_TICK_SPACING),
+                    0.1,
+                    1.0..=100.0,
+                    mx!(tick_spacing),
+                );
+            }
+            choice(
+                ui,
+                "Marks",
+                &mut e.marks,
+                st.marks.unwrap_or(0),
+                &MARKS,
+                mx!(marks),
+            );
+            let has_marks = e.marks.or(st.marks).unwrap_or(0) > 0 || mx!(marks);
+            if has_marks {
+                num(
+                    ui,
+                    "Mark position",
+                    &mut e.mark_pos,
+                    st.mark_pos.unwrap_or(0.5),
+                    0.01,
+                    0.0..=1.0,
+                    mx!(mark_pos),
+                );
+            }
+            if has_marks || e.ticks.or(st.ticks).unwrap_or(false) || mx!(ticks) {
+                num(
+                    ui,
+                    "Tick length (pt)",
+                    &mut e.tick_length,
+                    st.tick_length.unwrap_or(d::EDGE_TICK_LENGTH),
+                    0.1,
+                    0.5..=50.0,
+                    mx!(tick_length),
+                );
+            }
             choice(
                 ui,
                 "Arrow",
@@ -1412,6 +1475,11 @@ impl GoldstoneApp {
             wavelength,
             double,
             double_sep,
+            ticks,
+            tick_spacing,
+            tick_length,
+            marks,
+            mark_pos,
             arrow,
             arrow_pos,
             arrow_length,
@@ -1986,19 +2054,22 @@ impl GoldstoneApp {
                 );
                 if self.latex.for_text.as_deref() != Some(self.latex.text.as_str()) {
                     self.latex.for_text = Some(self.latex.text.clone());
+                    let mut warnings = Vec::new();
                     self.latex.status = goldstone_core::expr::parse(&self.latex.text).and_then(|eq| {
-                        goldstone_core::expr::diagram(&eq)?;
+                        let drawn = goldstone_core::expr::diagram(&eq)?;
+                        warnings = drawn.warnings;
                         let ops: usize = eq.terms.iter().map(|t| t.tensors.len()).sum();
                         Ok(format!(
                             "{} term(s), {ops} operator(s){}",
-                            eq.terms.len(),
+                            eq.terms.len() - warnings.len(),
                             if eq.external.is_empty() {
-                                ", closed".to_string()
+                                String::new()
                             } else {
                                 format!(", open: {}", eq.external.join(" "))
                             }
                         ))
                     });
+                    self.latex.warnings = warnings;
                 }
                 match &self.latex.status {
                     Ok(s) if !s.is_empty() => {
@@ -2008,6 +2079,9 @@ impl GoldstoneApp {
                     Err(e) => {
                         ui.label(RichText::new(e).color(Color32::from_rgb(190, 30, 30)));
                     }
+                }
+                for w in &self.latex.warnings {
+                    ui.label(RichText::new(format!("⚠ {w}")).color(Color32::from_rgb(200, 120, 0)));
                 }
                 let ok = self.latex.status.is_ok();
                 ui.horizontal(|ui| {

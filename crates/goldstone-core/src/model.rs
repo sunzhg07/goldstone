@@ -177,6 +177,21 @@ pub struct Style {
     pub double: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub double_sep: Option<f64>,
+    /// Short bars across the line, evenly spaced along all of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ticks: Option<bool>,
+    /// Distance between ticks (pt), fitted to the line's length.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tick_spacing: Option<f64>,
+    /// Length of ticks and marks across the line (pt).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tick_length: Option<f64>,
+    /// Number of bars (1–3) across the line at `mark_pos`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marks: Option<u32>,
+    /// Position of the marks along the line (0–1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mark_pos: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dash: Option<[f64; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -269,6 +284,21 @@ pub struct Edge {
     pub double: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub double_sep: Option<f64>,
+    /// Short bars across the line, evenly spaced along all of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ticks: Option<bool>,
+    /// Distance between ticks (pt), fitted to the line's length.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tick_spacing: Option<f64>,
+    /// Length of ticks and marks across the line (pt).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tick_length: Option<f64>,
+    /// Number of bars (1–3) across the line at `mark_pos`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marks: Option<u32>,
+    /// Position of the marks along the line (0–1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mark_pos: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dash: Option<[f64; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

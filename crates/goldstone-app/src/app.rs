@@ -275,6 +275,8 @@ pub struct LatexDialog {
     pub text: String,
     /// Result of parsing `text`: a summary, or the error.
     pub status: Result<String, String>,
+    /// Terms left out because they are not valid contractions.
+    pub warnings: Vec<String>,
     pub(crate) for_text: Option<String>,
 }
 
@@ -284,6 +286,7 @@ impl Default for LatexDialog {
             open: false,
             text: r"E2 = \sum_{abij} V_{ijab} T_{abij}".into(),
             status: Ok(String::new()),
+            warnings: Vec::new(),
             for_text: None,
         }
     }
@@ -958,7 +961,7 @@ impl GoldstoneApp {
     /// right of the drawing, or as the whole document (`replace`).
     pub(crate) fn insert_latex(&mut self, replace: bool) {
         let part = match goldstone_core::expr::from_latex(&self.latex.text) {
-            Ok(d) => d,
+            Ok(d) => d.doc,
             Err(e) => {
                 self.latex.status = Err(e);
                 return;

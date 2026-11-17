@@ -81,7 +81,8 @@ Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl
 
 - `X_{pqrs}` is ⟨pq|X|rs⟩: the first half of the indices are outgoing
   (bra), the second half incoming (ket); `X^{pq}_{rs}` means the same.
-  Braces are optional (`V_ijab`).
+  Write indices as LaTeX: `V_{ijab}` (or `V_ijab`). Something that is not
+  LaTeX, such as `T{aj}`, is an error that says what to write instead.
 - **a–h are particles** (arrow up), **i–n holes** (arrow down); digits and
   primes are allowed (`a1`, `i'`).
 - Each vertex of an operator joins one outgoing and one incoming index
@@ -92,6 +93,30 @@ Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl
 - `V W v w g H F f U` are interactions (dashed line; with two indices a
   one-body `---X`); other names (`T`, `S`, `R`, …) are amplitudes (thick
   bar). Several lines between two vertices become arcs.
+- Equations as written in papers work too, e.g. the CCSD doubles
+  equation with `\begin{aligned} … \\ … \end{aligned}`, `&`, `\quad`:
+  - `\langle ij || ab \rangle` is an antisymmetrized integral (drawn as
+    `v`), `\mathcal{W}`, `\tau`, `\bar{H}` are operator names;
+  - `\left( … \right)` around a sum is multiplied out
+    (`t (F - \frac{1}{2} t F)` gives two diagrams);
+  - `P(ab)`, `P(ij)` permutation operators are left out;
+  - in `X_{..}^{..}` notations differ on which group is outgoing
+    (`t_{ij}^{ab}` vs `\mathcal{W}_{mn}^{ij}`), so Goldstone uses the reading
+    that makes every summed index outgoing on one operator and incoming on
+    the other, and that points the external lines the same way in all
+    terms (an integral may be read as ⟨ab||ij⟩ for ⟨ij||ab⟩);
+  - `0 = …` takes the external lines from what is left open; each `\\`
+    starts a new row of diagrams.
+- **IMSRG / VS-IMSRG notation** (occupation factors, or the operators η,
+  Γ, Ω, χ): every index is a general orbital. `n_a` makes line *a* a hole,
+  `\bar n_a` or `(1-n_a)` a particle; factors such as `(n_a - n_b)` are
+  multiplied out, giving one diagram per particle–hole assignment. Lines
+  without a factor, and all external lines, are drawn without arrows.
+  Orbitals may be digits (`f_{12}`).
+- **Layout**: vertices joined by internal lines share a column, so those
+  lines run straight up and down and a ladder keeps its width. External
+  lines run to the top or bottom of the whole diagram and lean just enough
+  to clear vertices and other lines.
 - `+` and `-` separate terms, drawn side by side, each as a group.
   Prefactors (`\frac{1}{4}`, `0.5`) are written before the term; `\sum`,
   `*`, `\cdot` are ignored.
@@ -100,6 +125,26 @@ Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl
   `p` instead of a particle or hole letter). **Insert** adds the diagram
   next to the drawing, **Replace drawing** starts over; everything can be
   undone, and the result is an ordinary diagram to edit further.
+
+### A whole document
+
+`goldstone paper.tex` draws every equation in the document (`equation`,
+`align`, `eqnarray`, `multline`, `gather`, `dmath`, `\[ \]`, `$$ $$`; an
+`align` with several equations gives one diagram per equation) into
+`paper-diagrams/`:
+
+- `eq0003-L37.pdf`: equation 3, which starts on line 37 (`-f svg`, `png`,
+  `tikz` or `gold` for other formats);
+- `overview-01.pdf`, …: 20 equations per page, each labelled with its
+  number and line, for checking;
+- `all.gold`: all diagrams in one file to open and edit;
+- `report.txt`: what was drawn, which terms were left out and why, and
+  which equations could not be drawn (definitions, operator algebra, …).
+
+Factors that are not part of a diagram (coupling factors `\hat J`,
+`(-1)^{…}`, 6j symbols, Kronecker deltas, labels such as `^{J}`) are left
+out. Coverage of CC, IMSRG and VS-IMSRG notation is tracked in
+[PARSER_PLAN.md](PARSER_PLAN.md).
 
 ## Selecting and editing
 
@@ -119,6 +164,12 @@ Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl
   a Bézier control point. Drag the diamond to move the arrow along the
   line. *Make Bézier curve* in Fill & Stroke turns an arc into a curve
   with two control points.
+- **Ticks and marks**: *Ticks* puts short bars across a line, evenly
+  spaced along all of it (*Tick spacing*, *Tick length*); *Marks* puts
+  1, 2 or 3 bars at one place (*Mark position*). Both work on every stroke
+  and line shape, including double lines; ticks leave the arrowhead free.
+  The *ticks* button in the bottom palette toggles ticks on the selected
+  edges; the rest is in Fill & Stroke.
 - **Double lines** work with every stroke (plain, dashed, dotted, wavy,
   curly, zigzag) and every line shape (straight, arc, Bézier, loop). Turn
   them on with *double* in the bottom palette, in the Line/Arc tool
@@ -186,6 +237,8 @@ goldstone extract fig.svg > fig.gold       # source embedded in an SVG
 goldstone fmt fig.gold                     # canonical form (drops comments)
 goldstone ls fig.gold                      # every object: id, kind, coordinates
 goldstone latex 'E2 = V_ijab T_abij' -o e2.pdf   # diagram of an expression
+goldstone paper.tex                        # draw every equation of a document
+goldstone tex paper.tex -f png --out-dir figs
 goldstone latex 'Z_abic = V_abef S_efic' > z.gold
 goldstone keys                             # the reference below
 ```

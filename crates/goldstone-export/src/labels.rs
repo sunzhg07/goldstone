@@ -108,6 +108,16 @@ fn escape_markup(s: &str) -> String {
 }
 
 /// Converts `text $math$ text` into Typst markup.
+/// `\text{RHS}` → `\mathrm{RHS}` (also `\textrm`, `\mbox`): the converter
+/// renders text commands through a helper that is not available here.
+fn text_to_mathrm(math: &str) -> String {
+    let mut out = math.to_string();
+    for cmd in ["\\textrm{", "\\textnormal{", "\\text{", "\\mbox{"] {
+        out = out.replace(cmd, "\\mathrm{");
+    }
+    out
+}
+
 pub fn to_typst(content: &str) -> Result<String, String> {
     let mut out = String::new();
     let mut parts = content.split('$');
@@ -118,6 +128,7 @@ pub fn to_typst(content: &str) -> Result<String, String> {
     }
     for part in parts.by_ref() {
         if in_math {
+            let part = &text_to_mathrm(part);
             let m = mitex::convert_math(part, None)
                 .map_err(|e| format!("cannot read LaTeX `{part}`: {e}"))?;
             out.push('$');
@@ -221,6 +232,19 @@ fn inner_svg(svg: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_in_math() {
+        let mut l = Labels::new();
+        assert!(
+            l.typeset(
+                r"$\left( \text{RHS} \right)_{ij}^{ab} =$",
+                10.0,
+                Color::BLACK
+            )
+            .is_ok()
+        );
+    }
 
     #[test]
     fn converts_mixed_text() {

@@ -97,6 +97,17 @@ pub fn summary(doc: &Document, o: ObjRef) -> String {
             if e.controls.is_some() {
                 s.push_str(", curve");
             }
+            if e.double.or(st.and_then(|s| s.double)).unwrap_or(false) {
+                s.push_str(", double");
+            }
+            if e.ticks.or(st.and_then(|s| s.ticks)).unwrap_or(false) {
+                s.push_str(", ticks");
+            }
+            match e.marks.or(st.and_then(|s| s.marks)).unwrap_or(0) {
+                0 => {}
+                1 => s.push_str(", 1 mark"),
+                n => s.push_str(&format!(", {n} marks")),
+            }
             if let Some(l) = &e.label {
                 s.push_str(&format!(", label {l}"));
             }
