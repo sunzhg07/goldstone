@@ -2,8 +2,9 @@
 
 use std::fmt::Write as _;
 
+use goldstone_core::color::Color;
 use goldstone_core::kurbo::{Affine, BezPath, PathEl, Point, Rect, Vec2};
-use goldstone_core::scene::{Cap, Join, Mark, PathItem, Scene, TextItem};
+use goldstone_core::scene::{Cap, Join, Mark, ObjRef, PathItem, Scene, TextItem};
 
 use crate::labels::{LabelBox, Labels};
 use crate::{ExportError, num};
@@ -14,6 +15,7 @@ pub const SOURCE_NS: &str = "urn:goldstone:source";
 /// A text item together with its typeset box and placement.
 pub(crate) struct PlacedText<'a> {
     pub item: &'a TextItem,
+    pub obj: ObjRef,
     pub label: LabelBox,
     /// Bottom-left corner of the (unrotated) box, y up.
     pub origin: Point,
@@ -35,34 +37,58 @@ impl PlacedText<'_> {
     }
 }
 
+/// Typesets and places all text items. In `lenient` mode a label that
+/// cannot be typeset is shown literally in red instead of failing; the
+/// errors are returned either way.
 pub(crate) fn place_texts<'a>(
     scene: &'a Scene,
     labels: &mut Labels,
-) -> Result<Vec<PlacedText<'a>>, ExportError> {
+    lenient: bool,
+) -> (Vec<PlacedText<'a>>, Vec<String>) {
     let mut out = Vec::new();
     let mut errors = Vec::new();
     for item in &scene.items {
         if let Mark::Text(t) = &item.mark {
-            match labels.typeset(&t.content, t.size, t.color) {
-                Ok(label) => {
-                    let (ux, uy) = t.anchor.unit_offset();
-                    let center = t.at - Vec2::new(ux * label.width / 2.0, uy * label.height / 2.0);
-                    let origin = center - Vec2::new(label.width / 2.0, label.height / 2.0);
-                    out.push(PlacedText {
-                        item: t,
-                        label,
-                        origin,
-                    });
+            let label = match labels.typeset(&t.content, t.size, t.color) {
+                Ok(l) => l,
+                Err(e) => {
+                    errors.push(format!("{} ({}): {e}", item.owner, t.content));
+                    if !lenient {
+                        continue;
+                    }
+                    labels
+                        .typeset_plain(&t.content, t.size, ERROR_COLOR)
+                        .unwrap_or(LabelBox {
+                            width: 0.0,
+                            height: 0.0,
+                            svg: String::new(),
+                        })
                 }
-                Err(e) => errors.push(format!("{} ({}): {e}", item.owner, t.content)),
-            }
+            };
+            let (ux, uy) = t.anchor.unit_offset();
+            let center = t.at - Vec2::new(ux * label.width / 2.0, uy * label.height / 2.0);
+            let origin = center - Vec2::new(label.width / 2.0, label.height / 2.0);
+            out.push(PlacedText {
+                item: t,
+                obj: item.obj,
+                label,
+                origin,
+            });
         }
     }
-    if errors.is_empty() {
-        Ok(out)
-    } else {
-        Err(ExportError::Labels(errors))
-    }
+    (out, errors)
+}
+
+/// Color used for labels that could not be typeset (editor only).
+pub const ERROR_COLOR: Color = Color::rgb(220, 0, 0);
+
+/// Boxes of all text items (corners, y up), for hit testing in the editor.
+pub fn text_boxes(scene: &Scene, labels: &mut Labels) -> Vec<(ObjRef, [Point; 4])> {
+    place_texts(scene, labels, true)
+        .0
+        .iter()
+        .map(|t| (t.obj, t.corners()))
+        .collect()
 }
 
 /// Bounding box of the drawing including typeset text, before the margin.
@@ -138,8 +164,41 @@ pub fn render(
     labels: &mut Labels,
     source: Option<&str>,
 ) -> Result<String, ExportError> {
-    let texts = place_texts(scene, labels)?;
+    let (texts, errors) = place_texts(scene, labels, false);
+    if !errors.is_empty() {
+        return Err(ExportError::Labels(errors));
+    }
     let b = full_bounds(scene, &texts).inflate(scene.margin, scene.margin);
+    let size = format!(
+        "width=\"{}pt\" height=\"{}pt\"",
+        num(b.width()),
+        num(b.height())
+    );
+    Ok(write_svg(scene, &texts, source, b, &size))
+}
+
+/// Renders the part `view` (document coordinates, y up) of a scene into an
+/// SVG of `px_w`×`px_h` pixels, for the editor canvas. Labels that cannot be
+/// typeset are drawn literally in red; their errors are returned.
+pub fn render_view(
+    scene: &Scene,
+    labels: &mut Labels,
+    view: Rect,
+    px_w: u32,
+    px_h: u32,
+) -> (String, Vec<String>) {
+    let (texts, errors) = place_texts(scene, labels, true);
+    let size = format!("width=\"{px_w}\" height=\"{px_h}\" preserveAspectRatio=\"none\"");
+    (write_svg(scene, &texts, None, view, &size), errors)
+}
+
+fn write_svg(
+    scene: &Scene,
+    texts: &[PlacedText],
+    source: Option<&str>,
+    b: Rect,
+    size_attrs: &str,
+) -> String {
     let (w, h) = (b.width(), b.height());
 
     let mut s = String::new();
@@ -147,9 +206,7 @@ pub fn render(
     writeln!(
         s,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" \
-         width=\"{}pt\" height=\"{}pt\" viewBox=\"{} {} {} {}\">",
-        num(w),
-        num(h),
+         {size_attrs} viewBox=\"{} {} {} {}\">",
         num(b.x0),
         num(-b.y1),
         num(w),
@@ -226,7 +283,7 @@ pub fn render(
         }
     }
     s.push_str("</svg>\n");
-    Ok(s)
+    s
 }
 
 /// Extracts an embedded `.gold` source from an SVG written by [`render`].

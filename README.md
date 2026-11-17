@@ -8,8 +8,9 @@ generate from scripts, and keep in git. Goldstone renders them to **PDF,
 SVG, PNG and TikZ**, with LaTeX labels typeset in Computer Modern without
 needing a TeX installation.
 
-Status: **M0**: file format, geometry and the command-line renderer. The
-Inkscape-style editor comes next (see [docs/DESIGN.md](docs/DESIGN.md)).
+Status: **M1**: file format, renderer, and an Inkscape-style editor
+(drawing, snapping, selection, Fill & Stroke, undo, save/export). See the
+[user manual](docs/MANUAL.md) and the [design](docs/DESIGN.md).
 
 ## Build
 
@@ -20,6 +21,8 @@ cargo build --release        # binary: target/release/goldstone
 ## Usage
 
 ```sh
+goldstone                                    # open the editor
+goldstone edit fig.gold                      # open a file in the editor
 goldstone render fig.gold                    # → fig.pdf
 goldstone render fig.gold -o fig.svg         # format from the extension
 goldstone render figs/*.gold -f tikz --out-dir paper/figs

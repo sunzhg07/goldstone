@@ -1,6 +1,6 @@
 # Goldstone — Design Document
 
-Status: **M0 implemented** (file format, geometry, CLI renderer) · 2026-11-17
+Status: **M0 and M1 implemented** (file format, geometry, CLI renderer, editor) · 2026-11-17
 
 Goldstone is a desktop app and command-line tool for drawing many-body
 diagrams (coupled cluster, IMSRG, MBPT: Goldstone and Hugenholtz diagrams)
@@ -561,6 +561,29 @@ M0 comes first on purpose: it settles the file format and the geometry
 before any GUI work, and it is already useful for scripted diagrams.
 
 ---
+
+## 9a. Implementation notes (M1)
+
+- The canvas is rasterized by the export pipeline (SVG → resvg) for the
+  visible area at screen resolution, so the editor shows exactly what is
+  exported. Selection highlights, handles and previews are drawn on top.
+- The right-hand dialogs are tabs in a fixed side panel. Detachable,
+  rearrangeable docking (`egui_dock`) is postponed to M3.
+- Inkscape conventions applied: `F1` is also the Select tool; the shortcut
+  window is under Help (and `?`, a Goldstone addition). The table in
+  `crates/goldstone-app/src/keys.rs` marks each binding as "same as
+  Inkscape" or "Goldstone only", and the manual is generated from it.
+- Saving keeps comments and layout (`goldstone_core::io::save`).
+- The UI follows the system light/dark theme; DejaVu Sans Mono (bundled
+  with Typst) is a fallback font for symbols.
+- Interaction is covered by tests that drive the editor with simulated
+  mouse and keyboard input (`crates/goldstone-app/tests/interaction.rs`);
+  `tests/screenshots.rs` renders the window offscreen for visual checks.
+
+Deferred from M1 to M2: touch selection (Alt+drag), multi-object editing
+with mixed values in Fill & Stroke (palettes and line width already work
+on many objects), groups, clipboard, rotation (`[` `]`), Tab cycling,
+Align & Distribute.
 
 ## 10. Open questions
 

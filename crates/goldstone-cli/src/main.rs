@@ -14,12 +14,17 @@ use goldstone_export::{Format, Labels, Options, export, svg};
     about = "Draw many-body (coupled-cluster, IMSRG, MBPT) diagrams"
 )]
 struct Cli {
+    /// Without a command, opens the editor.
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
 enum Command {
+    /// Open the editor, optionally with a .gold file (or an SVG made by Goldstone).
+    Edit { file: Option<PathBuf> },
+    /// Print the keyboard and mouse reference (Markdown, as in docs/MANUAL.md).
+    Keys,
     /// Render diagrams to SVG, PDF, PNG, or TikZ (.tex standalone / .tikz picture).
     ///
     /// Inputs are .gold files, or SVG files written by Goldstone (their
@@ -100,7 +105,15 @@ fn load(path: &Path) -> Result<(String, scene::Scene), String> {
 
 fn run(cli: Cli) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
-    match cli.command {
+    let Some(command) = cli.command else {
+        return goldstone_app::run(None).map_err(|e| vec![format!("cannot open the editor: {e}")]);
+    };
+    match command {
+        Command::Edit { file } => {
+            return goldstone_app::run(file)
+                .map_err(|e| vec![format!("cannot open the editor: {e}")]);
+        }
+        Command::Keys => print!("{}", goldstone_app::keys::manual_markdown()),
         Command::Render {
             inputs,
             output,

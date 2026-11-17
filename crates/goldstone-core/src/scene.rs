@@ -101,10 +101,22 @@ pub enum Mark {
     Text(TextItem),
 }
 
+/// Reference to a document object by kind and index into its list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ObjRef {
+    Vertex(usize),
+    Edge(usize),
+    Text(usize),
+    Axes(usize),
+    Shape(usize),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Item {
     /// Id of the document object this item was generated from.
     pub owner: String,
+    /// The document object this item was generated from.
+    pub obj: ObjRef,
     pub layer: i32,
     pub mark: Mark,
 }
@@ -115,6 +127,9 @@ pub struct Scene {
     pub items: Vec<Item>,
     pub margin: f64,
     pub background: Option<Color>,
+    /// Per edge (same index as the document): the base path from vertex to
+    /// vertex, before trimming and stroke decoration. Used for editing handles.
+    pub edge_paths: Vec<Option<BezPath>>,
 }
 
 impl Scene {
@@ -158,6 +173,8 @@ struct Ctx<'a> {
     styles: &'a BTreeMap<String, Style>,
     errors: Vec<String>,
     items: Vec<Item>,
+    /// Object whose items are currently being generated.
+    current: ObjRef,
 }
 
 impl Ctx<'_> {
@@ -247,6 +264,7 @@ impl Ctx<'_> {
     ) {
         self.items.push(Item {
             owner: owner.to_string(),
+            obj: self.current,
             layer,
             mark: Mark::Path(PathItem { path, stroke, fill }),
         });
@@ -255,6 +273,7 @@ impl Ctx<'_> {
     fn push_text(&mut self, owner: &str, layer: i32, text: TextItem) {
         self.items.push(Item {
             owner: owner.to_string(),
+            obj: self.current,
             layer,
             mark: Mark::Text(text),
         });
@@ -330,7 +349,9 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
         styles: &doc.styles,
         errors: Vec::new(),
         items: Vec::new(),
+        current: ObjRef::Vertex(0),
     };
+    let mut edge_paths: Vec<Option<BezPath>> = vec![None; doc.edges.len()];
 
     if doc.format == 0 || doc.format > FORMAT_VERSION {
         ctx.errors.push(format!(
@@ -396,7 +417,8 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
     }
 
     // ---- shapes ----------------------------------------------------------
-    for (s, id) in doc.shapes.iter().zip(&shape_ids) {
+    for (idx, (s, id)) in doc.shapes.iter().zip(&shape_ids).enumerate() {
+        ctx.current = ObjRef::Shape(idx);
         let what = format!("shape {id:?}");
         let st = ctx.style(&s.class, &what);
         let color = ctx.color(&s.color, &st.color, Color::BLACK, &what);
@@ -446,7 +468,8 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
     }
 
     // ---- axes ------------------------------------------------------------
-    for (a, id) in doc.axes.iter().zip(&axes_ids) {
+    for (idx, (a, id)) in doc.axes.iter().zip(&axes_ids).enumerate() {
+        ctx.current = ObjRef::Axes(idx);
         let what = format!("axes {id:?}");
         let st = ctx.style(&a.class, &what);
         let color = ctx.color(&a.color, &st.color, Color::BLACK, &what);
@@ -561,7 +584,8 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
     }
 
     // ---- edges -----------------------------------------------------------
-    for (e, id) in doc.edges.iter().zip(&edge_ids) {
+    for (idx, (e, id)) in doc.edges.iter().zip(&edge_ids).enumerate() {
+        ctx.current = ObjRef::Edge(idx);
         let what = format!("edge {id:?} ({} → {})", e.from, e.to);
         let (Some(va), Some(vb)) = (
             vinfo.get(e.from.as_str()).copied(),
@@ -638,6 +662,7 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
             ctx.errors.push(format!("{what}: the edge has zero length"));
             continue;
         }
+        edge_paths[idx] = Some(base.clone());
         let (ta, tb) = (va.trim(), vb.trim());
         let base = if (ta > 0.0 || tb > 0.0) && full.length() > ta + tb + 1e-6 {
             full.sub_path(ta, full.length() - tb)
@@ -772,7 +797,10 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
     }
 
     // ---- vertex marks ----------------------------------------------------
-    for (v, kind, size, color, fill, width, layer, at, st) in vertex_marks {
+    for (idx, (v, kind, size, color, fill, width, layer, at, st)) in
+        vertex_marks.into_iter().enumerate()
+    {
+        ctx.current = ObjRef::Vertex(idx);
         let id = v.id.as_str();
         let r = size / 2.0;
         let rot = v.rotation.unwrap_or(0.0).to_radians();
@@ -845,7 +873,8 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
     }
 
     // ---- free text -------------------------------------------------------
-    for (t, id) in doc.texts.iter().zip(&text_ids) {
+    for (idx, (t, id)) in doc.texts.iter().zip(&text_ids).enumerate() {
+        ctx.current = ObjRef::Text(idx);
         let what = format!("text {id:?}");
         let st = ctx.style(&t.class, &what);
         let color = ctx.color(&t.color, &st.color, Color::BLACK, &what);
@@ -892,6 +921,7 @@ pub fn build(doc: &Document) -> Result<Scene, Diagnostics> {
         items,
         margin,
         background,
+        edge_paths,
     })
 }
 

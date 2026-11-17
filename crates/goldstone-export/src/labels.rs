@@ -83,6 +83,18 @@ impl World for LabelWorld {
     }
 }
 
+/// A font with wide Unicode coverage (DejaVu Sans Mono, bundled with Typst),
+/// for user interfaces that need symbols like ↺ ⊗ ✕ ⚠.
+pub fn symbol_font() -> Option<&'static [u8]> {
+    typst_assets::fonts().find(|data| {
+        Font::iter(Bytes::new(*data)).any(|f| {
+            f.info().family == "DejaVu Sans Mono"
+                && f.info().variant.weight.to_number() == 400
+                && f.info().variant.style == typst::text::FontStyle::Normal
+        })
+    })
+}
+
 /// Escapes plain text for Typst markup.
 fn escape_markup(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -130,6 +142,23 @@ impl Labels {
         Self::default()
     }
 
+    /// Typesets `text` literally (no math), e.g. to show a label whose LaTeX
+    /// could not be read.
+    pub fn typeset_plain(
+        &mut self,
+        text: &str,
+        size: f64,
+        color: Color,
+    ) -> Result<LabelBox, String> {
+        let key = (format!("\u{0}plain\u{0}{text}"), size.to_bits(), color);
+        if let Some(r) = self.cache.get(&key) {
+            return r.clone();
+        }
+        let r = typeset_body(&escape_markup(text), text, size, color);
+        self.cache.insert(key, r.clone());
+        r
+    }
+
     pub fn typeset(&mut self, content: &str, size: f64, color: Color) -> Result<LabelBox, String> {
         let key = (content.to_string(), size.to_bits(), color);
         if let Some(r) = self.cache.get(&key) {
@@ -142,7 +171,10 @@ impl Labels {
 }
 
 fn typeset_uncached(content: &str, size: f64, color: Color) -> Result<LabelBox, String> {
-    let body = to_typst(content)?;
+    typeset_body(&to_typst(content)?, content, size, color)
+}
+
+fn typeset_body(body: &str, content: &str, size: f64, color: Color) -> Result<LabelBox, String> {
     let src = format!(
         "#set page(width: auto, height: auto, margin: {m}pt, fill: none)\n\
          #set text(font: \"New Computer Modern\", size: {size}pt, fill: rgb(\"{hex}\"), top-edge: \"bounds\", bottom-edge: \"bounds\")\n\

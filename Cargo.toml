@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/goldstone-core", "crates/goldstone-export", "crates/goldstone-cli"]
+members = ["crates/goldstone-core", "crates/goldstone-export", "crates/goldstone-cli", "crates/goldstone-app"]
 
 [workspace.package]
 version = "0.1.0"

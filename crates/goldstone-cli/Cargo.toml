@@ -11,5 +11,6 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+goldstone-app = { path = "../goldstone-app" }
 goldstone-core = { path = "../goldstone-core" }
 goldstone-export = { path = "../goldstone-export" }

@@ -148,6 +148,34 @@ pub fn export(
     })
 }
 
+/// Rasterizes the part `view` (document coordinates, y up) of a scene into a
+/// `px_w`×`px_h` image for the editor canvas. Returns premultiplied RGBA
+/// pixels and any label errors (such labels are drawn literally in red).
+pub fn rasterize_view(
+    scene: &Scene,
+    labels: &mut Labels,
+    view: goldstone_core::kurbo::Rect,
+    px_w: u32,
+    px_h: u32,
+) -> (Vec<u8>, Vec<String>) {
+    let (svg, errors) = svg::render_view(scene, labels, view, px_w, px_h);
+    let mut pixels = vec![0u8; px_w as usize * px_h as usize * 4];
+    if let (Ok(tree), Some(mut pixmap)) = (
+        parse_svg(&svg),
+        resvg::tiny_skia::Pixmap::new(px_w.max(1), px_h.max(1)),
+    ) {
+        resvg::render(
+            &tree,
+            resvg::tiny_skia::Transform::identity(),
+            &mut pixmap.as_mut(),
+        );
+        if pixmap.data().len() == pixels.len() {
+            pixels.copy_from_slice(pixmap.data());
+        }
+    }
+    (pixels, errors)
+}
+
 fn parse_svg(svg: &str) -> Result<svg2pdf::usvg::Tree, String> {
     svg2pdf::usvg::Tree::from_str(svg, &svg2pdf::usvg::Options::default())
         .map_err(|e| e.to_string())
