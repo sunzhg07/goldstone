@@ -1459,6 +1459,15 @@ fn place_with(
             (lo, hi)
         };
         let spans: Vec<(f64, f64)> = (0..n_ops).map(span).collect();
+        // The vertices of an operator keep their written order, left to
+        // right: in V_{pqrs} the vertex (p, r) is left of (q, s).
+        for (t, ten) in term.tensors.iter().enumerate() {
+            for j in 1..ten.bra.len() {
+                if x(V { t, j: j - 1 }) > x(V { t, j }) {
+                    cost += 5000.0;
+                }
+            }
+        }
         for t in 0..n_ops {
             let k = term.tensors[t].bra.len() as f64;
             cost += 5.0 * (spans[t].1 - spans[t].0 - (k - 1.0));
@@ -1527,8 +1536,21 @@ fn place_with(
     let mut best: (f64, Vec<usize>) = (f64::INFINITY, (0..g).collect());
     // The few best arrangements, to be drawn and measured by the caller.
     let mut top: Vec<(f64, Vec<usize>)> = Vec::new();
+    // Whether an arrangement keeps every operator's vertices in written order.
+    let in_order = |order: &[usize]| {
+        term.tensors.iter().enumerate().all(|(t, ten)| {
+            (1..ten.bra.len())
+                .all(|j| order[group_of[&V { t, j: j - 1 }]] < order[group_of[&V { t, j }]])
+        })
+    };
     if g <= 8 {
+        // Only arrangements in written order, unless there is none.
+        let mut any_in_order = false;
+        each_permutation(g, |perm| any_in_order |= in_order(perm));
         each_permutation(g, |perm| {
+            if any_in_order && !in_order(perm) {
+                return;
+            }
             let c = score(perm);
             if top.len() < CANDIDATES || c < top[top.len() - 1].0 - 1e-9 {
                 top.push((c, perm.to_vec()));
@@ -1824,20 +1846,38 @@ fn draw_term(
                             lines[n].out.expect("internal")
                         }),
                     );
-                    let blocked = pos.keys().any(|w| {
+                    let blocker = pos.keys().copied().find(|w| {
                         let q = at(*w);
                         let inside = (q.1 - pa.1) * (q.1 - pb.1) < -1e-9;
                         let dx = pa.0 + (pb.0 - pa.0) * (q.1 - pa.1) / (pb.1 - pa.1) - q.0;
                         inside && dx.abs() < 8.0
                     });
-                    if blocked {
-                        let center = pos.values().map(|p| p.0 + x0).sum::<f64>() / pos.len() as f64;
-                        // Left of the travel direction u → other is +bend.
+                    if let Some(w) = blocker {
+                        // Bulge away from the bar of the operator in the way;
+                        // for a one-body operator, away from the middle.
+                        let q = at(w);
+                        let others: Vec<f64> = pos
+                            .keys()
+                            .filter(|v| v.t == w.t && **v != w)
+                            .map(|v| at(*v).0 - q.0)
+                            .collect();
+                        let toward_right = if others.is_empty() {
+                            let center =
+                                pos.values().map(|p| p.0 + x0).sum::<f64>() / pos.len() as f64;
+                            q.0 >= center
+                        } else {
+                            others.iter().sum::<f64>() < 0.0
+                        };
+                        // Positive bend bulges to the left of the travel
+                        // direction u → other.
                         let dir = (pb.0 - pa.0, pb.1 - pa.1);
-                        let left = (-dir.1, dir.0);
-                        let mid = ((pa.0 + pb.0) / 2.0, (pa.1 + pb.1) / 2.0);
-                        let outward = (mid.0 - center) * left.0 >= 0.0;
-                        if outward { 40.0 } else { -40.0 }
+                        let left_x = -dir.1;
+                        let left_is_right = left_x > 0.0;
+                        if left_is_right == toward_right {
+                            40.0
+                        } else {
+                            -40.0
+                        }
                     } else {
                         0.0
                     }
@@ -2598,6 +2638,19 @@ mod tests {
             2,
             "p and q are general"
         );
+    }
+
+    #[test]
+    fn vertices_keep_their_written_order() {
+        // a (first vertex of the first V) is left of b (second vertex of Z).
+        let d = from_latex(r"\sum_{efh_1h_2}V_{ah_1ef}V_{efch_2}Z_{h_2bh_1d}")
+            .unwrap()
+            .doc;
+        let x = |id: &str| d.vertices.iter().find(|v| v.id == id).unwrap().at[0];
+        assert!(x("V1_1") < x("V1_2"), "V_{{ah_1ef}}: (a,e) left of (h_1,f)");
+        assert!(x("V2_1") < x("V2_2"));
+        assert!(x("Z3_1") < x("Z3_2"));
+        assert!(x("a_end") < x("b_end"));
     }
 
     #[test]
