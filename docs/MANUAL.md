@@ -86,44 +86,45 @@ Z_{abic} = V_{abef} S_{efic}                  open diagram: a, b, i, c external
 Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl}
 ```
 
-- `X_{pqrs}` is ⟨pq|X|rs⟩: the first half of the indices are outgoing
-  (bra), the second half incoming (ket); `X^{pq}_{rs}` means the same.
-  Write indices as LaTeX: `V_{ijab}` (or `V_ijab`). Something that is not
-  LaTeX, such as `T{aj}`, is an error that says what to write instead.
-- **a–g are particles** (arrow up), **h–n holes** (arrow down). When
-  there are not enough letters, number them: `a_1 a_2 … b_1 …` are
-  particles, `h_1 h_2 … i_1 …` holes (`a_{12}` for two digits), e.g.
+The rules are strict; anything else is rejected with a message that says
+what to write.
+
+- **An operator (vertex) is `X^{label}_{indices}`.** `X` is its name:
+  `V`, `T`, `\Gamma`, `\mathcal{W}`, `\bar{H}`, …. The superscript is
+  optional and is part of the name, shown as written (`V^{1a}`,
+  `W^{(2)}`). The subscript holds the fermion lines and nothing else:
+  `X_{pqrs}` is ⟨pq|X|rs⟩, the first half outgoing (bra), the second half
+  incoming (ket). Braces are required: `V_ijab`, `t_i^a`, `T{aj}` and
+  `\langle ij||ab \rangle` are rejected (write `V_{ijab}`, `t_{ai}`,
+  `T_{aj}`, `V_{ijab}`).
+- **An index is a letter (`a`) or a numbered letter (`a_1`, `a_{12}`).**
+  Nothing else: `a1`, `a'`, digits (`f_{12}`) and capitals are rejected.
+  **a–g are particles** (arrow up), **h–n holes** (arrow down), numbered
+  or not: `a_1 a_2 … b_1 …` are particles, `h_1 h_2 … i_1 …` holes, e.g.
   `Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}`.
-  Digits and primes are allowed too (`a1`, `i'`). Other letters (`p q r s`)
-  are general orbitals.
+  Other letters (`p q r s …`) are general orbitals (no arrow). The name of
+  an operator never changes this: `\Gamma_{ijab}` has the same lines as
+  `V_{ijab}`.
+- Spaces do not matter, as in LaTeX. Commands need their backslash:
+  `sum_{ab}` is rejected (write `\sum_{ab}`).
 - Each vertex of an operator joins one outgoing and one incoming index
   (p with r, q with s). An index used twice is an internal line, from where
-  it is outgoing to where it is incoming; that decides which operator is
-  drawn above which. An index used once is an external line and must stand
-  on the left-hand side.
-- `V W v w g H F f U` are interactions (dashed line; with two indices a
-  one-body `---X`); other names (`T`, `S`, `R`, …) are amplitudes (thick
-  bar). Several lines between two vertices become arcs.
-- Equations as written in papers work too, e.g. the CCSD doubles
-  equation with `\begin{aligned} … \\ … \end{aligned}`, `&`, `\quad`:
-  - `\langle ij || ab \rangle` is an antisymmetrized integral (drawn as
-    `v`), `\mathcal{W}`, `\tau`, `\bar{H}` are operator names;
-  - `\left( … \right)` around a sum is multiplied out
-    (`t (F - \frac{1}{2} t F)` gives two diagrams);
-  - `P(ab)`, `P(ij)` permutation operators are left out;
-  - in `X_{..}^{..}` notations differ on which group is outgoing
-    (`t_{ij}^{ab}` vs `\mathcal{W}_{mn}^{ij}`), so Goldstone uses the reading
-    that makes every summed index outgoing on one operator and incoming on
-    the other, and that points the external lines the same way in all
-    terms (an integral may be read as ⟨ab||ij⟩ for ⟨ij||ab⟩);
-  - `0 = …` takes the external lines from what is left open; each `\\`
-    starts a new row of diagrams.
-- **IMSRG / VS-IMSRG notation** (occupation factors, or the operators η,
-  Γ, Ω, χ): every index is a general orbital. `n_a` makes line *a* a hole,
-  `\bar n_a` or `(1-n_a)` a particle; factors such as `(n_a - n_b)` are
-  multiplied out, giving one diagram per particle–hole assignment. Lines
-  without a factor, and all external lines, are drawn without arrows.
-  Orbitals may be digits (`f_{12}`).
+  it is outgoing to where it is incoming; particle and hole lines decide
+  which operator is drawn above which (general lines do not). An index used
+  once is an external line and must stand on the left-hand side.
+- `V W v w g H F f U \Gamma` are interactions (dashed line; with two
+  indices a one-body `---X`); other names (`T`, `S`, `R`, `\tau`, …) are
+  amplitudes (thick bar). Several lines between two vertices become arcs.
+- `\begin{aligned} … \\ … \end{aligned}`, `&`, `\quad` are understood;
+  `\left( … \right)` around a sum is multiplied out (`T (F - \frac{1}{2} T
+  F)` gives two diagrams); `P(ab)` permutations are left out; `0 = …`
+  takes the external lines from what is left open; each `\\` starts a new
+  row of diagrams.
+- **IMSRG notation**: occupation factors decide the lines. `n_a` makes
+  line *a* a hole, `\bar n_a` or `(1-n_a)` a particle; factors such as
+  `(n_a - n_b)` are multiplied out, giving one diagram per particle–hole
+  assignment. With occupation factors, lines without one (and the external
+  lines) are general: drawn without arrows.
 - **Layout**: vertices joined by internal lines share a column, so those
   lines run straight up and down and a ladder keeps its width. External
   lines run to the top or bottom of the whole diagram and lean just enough
@@ -131,11 +132,10 @@ Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl
 - `+` and `-` separate terms, drawn side by side, each as a group.
   Prefactors (`\frac{1}{4}`, `0.5`) are written before the term; `\sum`,
   `*`, `\cdot` are ignored.
-- The dialog checks the expression as you type and explains mistakes
-  (an index used twice as outgoing, an external index missing on the left,
-  `p` instead of a particle or hole letter). **Insert** adds the diagram
-  next to the drawing, **Replace drawing** starts over; everything can be
-  undone, and the result is an ordinary diagram to edit further.
+- The dialog checks the expression as you type and explains mistakes.
+  **Insert** adds the diagram next to the drawing, **Replace drawing**
+  starts over; everything can be undone, and the result is an ordinary
+  diagram to edit further.
 
 ### A whole document
 
@@ -353,7 +353,7 @@ goldstone check figs/*.gold                # validate, typeset all labels
 goldstone extract fig.svg > fig.gold       # source embedded in an SVG
 goldstone fmt fig.gold                     # canonical form (drops comments)
 goldstone ls fig.gold                      # every object: id, kind, coordinates
-goldstone latex 'E2 = V_ijab T_abij' -o e2.pdf   # diagram of an expression
+goldstone latex 'E2 = V_{ijab} T_{abij}' -o e2.pdf   # diagram of an expression
 goldstone paper.tex                        # draw every equation of a document
 goldstone tex paper.tex -f png --out-dir figs
 goldstone latex 'Z_abic = V_abef S_efic' > z.gold
@@ -462,7 +462,7 @@ dispatches keys from the same table, so this list is always accurate.
 | `Ctrl+Tab` | — | Next tab | Goldstone only |
 | `Ctrl+PageDown` | `⌘ PageDown` | Next tab | Goldstone only |
 | `Ctrl+PageUp` | `⌘ PageUp` | Previous tab | Goldstone only |
-| `Ctrl+Shift+T` | `⇧⌘T` | Diagram from LaTeX: draw a tensor expression such as E2 = V_ijab T_abij | Goldstone only |
+| `Ctrl+Shift+T` | `⇧⌘T` | Diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij} | Goldstone only |
 | `Ctrl+Q` | `⌘Q` | Quit | same |
 | `?` | `?` | Show keyboard shortcuts | Goldstone only |
 

@@ -5,24 +5,28 @@
 //! Z_{abic} = V_{abef} S_{efic}
 //! ```
 //!
-//! Conventions (Shavitt–Bartlett):
+//! The rules (strict; anything else is rejected with a message):
 //!
-//! - `X_{pqrs}` is ⟨pq|X|rs⟩: the first half of the indices are *outgoing*
-//!   (bra), the second half *incoming* (ket). `X^{pq}_{rs}` means the same.
-//! - Indices `a`–`g` are particles (arrow up), `h`–`n` holes (arrow down), also numbered (`a_1`, `h_{12}`);
-//!   an index may carry digits or primes (`a1`, `i'`).
+//! - An operator (a vertex) is `X^{label}_{indices}`: a name (`V`,
+//!   `\Gamma`, `\mathcal{W}`, …), an optional superscript that is part of
+//!   the name, shown as written (`V^{1a}`, `W^{(2)}`), and a subscript
+//!   holding only fermion lines. `X_{pqrs}` is ⟨pq|X|rs⟩: the first half of
+//!   the indices are outgoing (bra), the second half incoming (ket).
+//! - An index is a letter, `a`, or a numbered letter, `a_1` / `a_{12}`.
+//!   `a`–`g` are particles (arrow up), `h`–`n` holes (arrow down); other
+//!   letters (`p`, `q`, …) are general orbitals (no arrow). Occupation
+//!   factors override: `n_a` hole, `\bar n_a` / `(1 - n_a)` particle; with
+//!   them, indices without a factor are general (IMSRG notation).
 //! - Every vertex of an operator joins one outgoing and one incoming index
-//!   (`p` with `r`, `q` with `s`). A one-body operator has one vertex, a
-//!   two-body operator two, and so on.
-//! - An index used twice on the right is an internal line from the vertex
-//!   where it is outgoing to the vertex where it is incoming; an index used
-//!   once is an external line and must appear on the left.
-//! - Interactions (`V W v w g H F f U`) are drawn as a dashed line between
-//!   their vertices (one-body: `---X`); every other operator (amplitudes
-//!   such as `T`, `S`, `R`) as a thick bar.
+//!   (`p` with `r`, `q` with `s`). An index used twice on the right is an
+//!   internal line; one used once is external and must be on the left.
+//! - Interactions (`V W v w g H F f U \Gamma`) are drawn as a dashed line
+//!   between their vertices (one-body: `---X`); every other operator as a
+//!   thick bar.
 //! - Terms separated by `+` / `-` become diagrams side by side. Numeric
-//!   prefactors (`\frac{1}{4}`, `0.5`) are kept as text; `\sum_{…}`,
-//!   `*`, `\cdot`, `\times` are ignored.
+//!   prefactors (`\frac{1}{4}`, `0.5`) are kept as text; `\sum_{…}`, `*`,
+//!   `\cdot`, `\times`, permutations `P(ab)` are not drawn. Spaces do not
+//!   matter, as in LaTeX.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -170,6 +174,11 @@ impl P<'_> {
             }
         }
     }
+    fn spaces(&mut self) {
+        while self.peek().is_some_and(|c| c.is_ascii_whitespace()) {
+            self.i += 1;
+        }
+    }
     fn eat(&mut self, t: &str) -> bool {
         if self.rest().starts_with(t.as_bytes()) {
             // A command must not continue with letters (`\sum` vs `\summary`).
@@ -207,13 +216,15 @@ impl P<'_> {
             }
             Err("unbalanced {".into())
         } else {
+            // Without braces LaTeX takes one token: a character or a command
+            // (`n_a`, `\frac12`; `n_ab` is n_a times b).
             let start = self.i;
-            // Without braces LaTeX takes one character (`t_i^a`); a run such
-            // as `V_ijab` is accepted as the common shorthand for `V_{ijab}`.
-            while self
-                .peek()
-                .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'\'')
-            {
+            if self.peek() == Some(b'\\') {
+                self.i += 1;
+                while self.peek().is_some_and(|c| c.is_ascii_alphabetic()) {
+                    self.i += 1;
+                }
+            } else if self.peek().is_some() {
                 self.i += 1;
             }
             Ok(String::from_utf8_lossy(&self.s[start..self.i]).into())
@@ -221,105 +232,43 @@ impl P<'_> {
     }
 }
 
-/// Splits `abij` / `a1 b' i j` / `a_1 a_2 h_1 h_{12}` into indices: a
-/// letter followed by digits, primes or a subscript.
+/// Splits the indices of a subscript: each is a letter (`a`) or a
+/// numbered letter (`a_1`, `a_{12}`); spaces do not matter. Anything else
+/// is an error.
 fn indices(s: &str) -> Result<Vec<String>, String> {
+    let hint = "an index is a letter (a) or a numbered letter (a_1, a_{12})";
     let mut out: Vec<String> = Vec::new();
-    let compact: String = s
-        .chars()
-        .filter(|c| !c.is_whitespace() && *c != ',')
-        .collect();
-    // Orbitals written as digits (`f_{12}`, `\eta_{1a}` in IMSRG papers):
-    // every digit that does not follow a letter is an index of its own.
-    let digit_orbitals = compact.len() >= 2 && compact.chars().all(|c| c.is_ascii_alphanumeric());
-    // `{a2}`, `{1a}`, `{12}`: every character is an orbital.
-    if digit_orbitals
-        && compact.chars().any(|c| c.is_ascii_digit())
-        && (compact.len() == 2 || compact.starts_with(|c: char| c.is_ascii_digit()))
-    {
-        return Ok(compact.chars().map(|c| c.to_string()).collect());
-    }
-    let mut chars = s.chars().peekable();
+    let mut chars = s.chars().filter(|c| !c.is_whitespace()).peekable();
     while let Some(c) = chars.next() {
-        // A numbered index: `a_1`, `h_{12}` (one index, drawn as $a_1$).
-        if c == '_' {
-            let Some(last) = out.last_mut() else {
-                return Err(format!("unexpected '_' in the indices {s:?}"));
-            };
-            let sub: String = if chars.peek() == Some(&'{') {
+        if !c.is_ascii_lowercase() {
+            return Err(format!("unexpected {c:?} in the indices {{{s}}}: {hint}"));
+        }
+        let mut ix = c.to_string();
+        if chars.peek() == Some(&'_') {
+            chars.next();
+            let num: String = if chars.peek() == Some(&'{') {
                 chars.next();
-                let inner: String = chars.by_ref().take_while(|&c| c != '}').collect();
-                let inner = inner.trim().to_string();
-                if inner.is_empty() || !inner.chars().all(|c| c.is_ascii_alphanumeric()) {
-                    return Err(format!(
-                        "write a numbered index as a_1 or a_{{12}} in {s:?}"
-                    ));
-                }
-                if inner.len() == 1 {
-                    inner
-                } else {
-                    format!("{{{inner}}}")
-                }
+                chars.by_ref().take_while(|&c| c != '}').collect()
             } else {
-                match chars.next() {
-                    Some(d) if d.is_ascii_alphanumeric() => d.to_string(),
-                    _ => {
-                        return Err(format!(
-                            "write a numbered index as a_1 or a_{{12}} in {s:?}"
-                        ));
-                    }
-                }
+                chars.next().map(|d| d.to_string()).unwrap_or_default()
             };
-            last.push('_');
-            last.push_str(&sub);
-            continue;
+            if num.is_empty() || !num.chars().all(|c| c.is_ascii_digit()) {
+                return Err(format!("{c}_{num} in the indices {{{s}}}: {hint}"));
+            }
+            ix = if num.len() == 1 {
+                format!("{c}_{num}")
+            } else {
+                format!("{c}_{{{num}}}")
+            };
         }
-        if c.is_ascii_digit()
-            && digit_orbitals
-            && out
-                .last()
-                .is_none_or(|l| l.chars().all(|c| c.is_ascii_digit()))
+        if let Some(&n) = chars.peek()
+            && (n.is_ascii_digit() || n == '\'')
         {
-            out.push(c.to_string());
-            continue;
+            return Err(format!("{ix}{n} in the indices {{{s}}}: {hint}"));
         }
-        if c.is_whitespace() || c == ',' {
-            continue;
-        }
-        if c.is_ascii_alphabetic() {
-            out.push(c.to_string());
-        } else if (c.is_ascii_digit() || c == '\'') && !out.is_empty() {
-            out.last_mut().expect("non-empty").push(c);
-        } else {
-            return Err(format!("unexpected {c:?} in the indices {s:?}"));
-        }
+        out.push(ix);
     }
     Ok(out)
-}
-
-/// Indices in a script group, or `None` if the group is a label
-/// (`J`, `0`, `{\rm od}`, `(1)`, `\alpha`, `{j}_{a}`).
-fn index_group(g: &str) -> Option<Vec<String>> {
-    let ix = indices(g).ok()?;
-    // A lone digit (`^{0}`, `z_{0}`) is a label, `{12}` two orbitals.
-    (!ix.is_empty()
-        && ix
-            .iter()
-            .all(|i| i.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit()))
-        && !(ix.len() == 1 && ix[0].starts_with(|c: char| c.is_ascii_digit())))
-    .then_some(ix)
-}
-
-/// Keeps a script label that names the operator (`\eta_{\rm 2b}`,
-/// `W^{(1)}`); drops angular-momentum labels.
-fn label_of(g: &str, script: char, mut acc: String) -> String {
-    if g.contains("\\rm") || g.contains("\\mathrm") || g.contains("\\text") || g.contains('(') {
-        acc.push(script);
-        acc.push('{');
-        acc.push_str(g.trim());
-        acc.push('}');
-    }
-    acc
 }
 
 /// Font and accent commands that take the operator letter as argument.
@@ -340,9 +289,10 @@ const NAME_WRAPPERS: &[&str] = &[
     "breve",
 ];
 
-/// The letter an operator name is built on (`\mathcal{W}` → `W`).
+/// The letter an operator name is built on (`\mathcal{W}` → `W`,
+/// `V^{1a}` → `V`).
 fn base_name(name: &str) -> &str {
-    let mut n = name;
+    let mut n = name.split('^').next().unwrap_or(name);
     while let Some(rest) = n.strip_prefix('\\') {
         match rest.find('{') {
             Some(b) if NAME_WRAPPERS.contains(&&rest[..b]) => {
@@ -381,94 +331,50 @@ fn parse_name(p: &mut P) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&p.s[start..p.i]).to_string())
 }
 
+/// `X^{label}_{indices}` (or `X_{indices}^{label}`).
 fn parse_tensor(p: &mut P) -> Result<Tensor, String> {
     let name = parse_name(p)?;
-    let (mut sub, mut sup) = (None, None);
-    let mut label = String::new();
+    let (mut sub, mut sup) = (None::<String>, None::<String>);
     loop {
-        // `V ^{ij}_{ab}`: spaces before the scripts are fine in LaTeX.
-        while p.peek() == Some(b' ') {
-            p.i += 1;
-        }
-        if p.eat("_") {
-            let g = p.group()?;
-            match index_group(&g) {
-                Some(ix) => sub = Some(ix),
-                None => label = label_of(&g, '_', label),
-            }
+        p.spaces();
+        let script = if p.eat("_") {
+            '_'
         } else if p.eat("^") {
-            let g = p.group()?;
-            match index_group(&g) {
-                Some(ix) => sup = Some(ix),
-                None => label = label_of(&g, '^', label),
-            }
-        } else if p.peek() == Some(b'{') && sub.is_none() && sup.is_none() {
-            let g = p.group()?;
-            return Err(format!(
-                "{name}{{{g}}} is not valid LaTeX for indices: write {name}_{{{g}}}"
-            ));
+            '^'
         } else {
             break;
-        }
-    }
-    // Labels such as `{\rm 2b}` or `(1)` belong to the name; coupling
-    // labels (`J`, `0`, `J_0`) are not part of the diagram.
-    let name = format!("{name}{label}");
-    let (bra, ket, flexible) = match (sup, sub) {
-        (Some(up), Some(down)) => (up, down, true),
-        (None, Some(all)) | (Some(all), None) => {
-            if all.len() % 2 != 0 {
-                return Err(format!(
-                    "{name}: an odd number of indices ({}); write X_{{pq rs}} = <pq|X|rs> or X^{{pq}}_{{rs}}",
-                    all.len()
-                ));
-            }
-            let h = all.len() / 2;
-            (all[..h].to_vec(), all[h..].to_vec(), false)
-        }
-        (None, None) => {
+        };
+        p.spaces();
+        if p.peek() != Some(b'{') {
             return Err(format!(
-                "{name}: an operator needs indices, e.g. {name}_{{ai}}"
+                "{name}{script}…: braces are needed, write {name}_{{indices}} (e.g. {name}_{{ijab}})"
             ));
         }
-    };
-    if bra.len() != ket.len() {
+        let g = p.group()?;
+        let slot = if script == '_' { &mut sub } else { &mut sup };
+        if slot.replace(g).is_some() {
+            return Err(format!("{name}: two {script} scripts"));
+        }
+    }
+    let label = sup.map_or(String::new(), |l| format!("^{{{}}}", l.trim()));
+    let name = format!("{name}{label}");
+    let Some(sub) = sub else {
         return Err(format!(
-            "{name}: {} upper but {} lower indices",
-            bra.len(),
-            ket.len()
+            "{name} is not a vertex: an operator is written {name}_{{indices}}, e.g. {name}_{{ijab}}"
+        ));
+    };
+    let all = indices(&sub).map_err(|e| format!("{name}: {e}"))?;
+    if all.is_empty() || all.len() % 2 != 0 {
+        return Err(format!(
+            "{name}_{{{sub}}}: an operator needs an even number of indices, X_{{pq rs}} = <pq|X|rs>"
         ));
     }
+    let h = all.len() / 2;
     Ok(Tensor {
         name,
-        bra,
-        ket,
-        flexible,
-    })
-}
-
-/// `\langle pq || rs \rangle` (antisymmetrized) or `\langle pq | rs \rangle`.
-fn parse_braket(p: &mut P) -> Result<Tensor, String> {
-    let start = p.i;
-    let rest = String::from_utf8_lossy(p.rest()).to_string();
-    let end = rest.find("\\rangle").ok_or("\\langle without \\rangle")?;
-    let inside = &rest[..end];
-    p.i = start + end + "\\rangle".len();
-    let (bra, ket) = inside
-        .split_once("||")
-        .or_else(|| inside.split_once("\\|"))
-        .or_else(|| inside.split_once('|'))
-        .ok_or_else(|| format!("\\langle{inside}\\rangle: expected ⟨pq||rs⟩"))?;
-    let (bra, ket) = (indices(bra)?, indices(ket)?);
-    if bra.len() != ket.len() || bra.is_empty() {
-        return Err(format!("\\langle{inside}\\rangle: expected ⟨pq||rs⟩"));
-    }
-    // ⟨pq||rs⟩ = ⟨rs||pq⟩ for real orbitals: either reading may be used.
-    Ok(Tensor {
-        name: "v".into(),
-        bra,
-        ket,
-        flexible: true,
+        bra: all[..h].to_vec(),
+        ket: all[h..].to_vec(),
+        flexible: false,
     })
 }
 
@@ -546,25 +452,10 @@ fn parse_occupation(p: &mut P) -> Result<Option<Vec<(String, bool)>>, String> {
 /// added and those that cancel dropped. `(n_a - n_b)` gives
 /// `n_a \bar n_b - \bar n_a n_b`, `(1 - n_a - n_b)` gives `\bar n_a \bar n_b - n_a n_b`.
 fn resolve_occupations(out: Vec<(Prod, usize)>) -> Vec<Term> {
-    // IMSRG notation: occupation factors, or the Greek operators of IMSRG
-    // papers (η, Γ, Ω, χ) with orbitals that are not CC letters (p, q, 1,
-    // 2, …); then indices are general orbitals. With only a–g / h–n, a
-    // Greek name is just a name: \Gamma_{ijab} \Gamma_{abij} is MBPT(2).
-    let imsrg_name = |t: &Tensor| {
-        let b = base_name(&t.name);
-        ["\\eta", "\\Gamma", "\\Omega", "\\chi", "\\Xi", "\\Theta"]
-            .iter()
-            .any(|g| b.starts_with(g))
-    };
-    let cc_letter = |i: &String| matches!(i.chars().next(), Some('a'..='n'));
-    let all_cc = out.iter().all(|(pr, _)| {
-        pr.tensors
-            .iter()
-            .all(|t| t.bra.iter().chain(&t.ket).all(cc_letter))
-    });
-    let general = out
-        .iter()
-        .any(|(pr, _)| !pr.occ.is_empty() || (!all_cc && pr.tensors.iter().any(imsrg_name)));
+    // IMSRG notation (general orbitals) only with occupation factors.
+    // Otherwise the letters decide: a–g particles, h–n holes, other letters
+    // (p, q, …) and digits general orbitals; an operator's name never does.
+    let general = out.iter().any(|(pr, _)| !pr.occ.is_empty());
     // Group the products of one written term with the same operators.
     let mut groups: Vec<(String, Vec<(Prod, usize)>)> = Vec::new();
     for (pr, row) in out {
@@ -874,11 +765,14 @@ fn parse_sum(
             continue;
         }
         if p.eat("\\sum") {
-            if p.eat("_") {
-                p.group()?;
-            }
-            if p.eat("^") {
-                p.group()?;
+            loop {
+                p.spaces();
+                if p.eat("_") || p.eat("^") {
+                    p.spaces();
+                    p.group()?;
+                } else {
+                    break;
+                }
             }
             continue;
         }
@@ -945,9 +839,9 @@ fn parse_sum(
             continue;
         }
         if p.eat("\\langle") {
-            let t = parse_braket(p)?;
-            cur.iter_mut().for_each(|pr| pr.tensors.push(t.clone()));
-            continue;
+            return Err(
+                "\\langle pq||rs \\rangle is not accepted: write the operator as V_{pqrs}".into(),
+            );
         }
         if c.is_ascii_alphabetic() || c == b'\\' {
             let t = parse_tensor(p)?;
@@ -995,9 +889,84 @@ fn split_equals(src: &str) -> (Option<&str>, &str) {
     (None, src)
 }
 
+/// A LaTeX command written without its backslash (`sum` for `\\sum`),
+/// which would otherwise read as a product of one-letter operators.
+fn missing_backslash(src: &str) -> Option<&'static str> {
+    const WORDS: &[&str] = &[
+        "sum",
+        "frac",
+        "dfrac",
+        "tfrac",
+        "cdot",
+        "times",
+        "langle",
+        "rangle",
+        "left",
+        "right",
+        "sqrt",
+        "mathcal",
+        "mathrm",
+        "bar",
+        "hat",
+        "tilde",
+        "delta",
+        "alpha",
+        "beta",
+        "gamma",
+        "Gamma",
+        "eta",
+        "Omega",
+        "omega",
+        "chi",
+        "tau",
+        "lambda",
+        "Lambda",
+        "sigma",
+        "Xi",
+        "Theta",
+        "Delta",
+        "Phi",
+        "phi",
+        "psi",
+        "Psi",
+        "rho",
+        "mu",
+        "nu",
+        "epsilon",
+        "varepsilon",
+    ];
+    let b = src.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i].is_ascii_alphabetic() {
+            let start = i;
+            while i < b.len() && b[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            let word = &src[start..i];
+            let escaped = start > 0 && b[start - 1] == b'\\';
+            // Inside an index group (`_{sum}`) it would be indices: skip.
+            let in_script =
+                start > 1 && b[start - 1] == b'{' && matches!(b[start - 2], b'_' | b'^');
+            if !escaped
+                && !in_script
+                && let Some(w) = WORDS.iter().find(|w| **w == word)
+            {
+                return Some(w);
+            }
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
 /// Parses `lhs = rhs` (or just `rhs`).
 pub fn parse(src: &str) -> Result<Equation, String> {
     let src = src.trim().trim_matches('$').trim();
+    if let Some(w) = missing_backslash(src) {
+        return Err(format!("`{w}` needs a backslash in LaTeX: write \\{w}"));
+    }
     let (lhs, rhs) = split_equals(src);
     // `z &+=& …` (accumulating a term) reads as `z = …`.
     let lhs = lhs.map(|l| {
@@ -1020,15 +989,22 @@ pub fn parse(src: &str) -> Result<Equation, String> {
                 i: 0,
                 origin: 0,
             };
-            // Indices after _ and ^ (E2, E^{(2)} and 0 have none).
+            // The indices of the subscript (E2, E^{(2)}, E_{\rm CC} and 0
+            // have none: a subscript that is not indices is a label).
             let mut ext = Vec::new();
             while let Some(c) = p.peek() {
                 p.i += 1;
-                if c == b'_' || c == b'^' {
-                    let g = p.group()?;
-                    if let Some(ix) = index_group(&g) {
-                        ext.extend(ix);
+                if c == b'_' {
+                    p.spaces();
+                    if p.peek() == Some(b'{') {
+                        let g = p.group()?;
+                        if let Ok(ix) = indices(&g) {
+                            ext.extend(ix);
+                        }
                     }
+                } else if c == b'^' {
+                    p.spaces();
+                    let _ = p.group()?;
                 }
             }
             ext
@@ -1126,13 +1102,21 @@ fn orient(
     external: &[String],
     has_lhs: bool,
 ) -> Result<Vec<(Term, Vec<Line>)>, String> {
-    // First as written; if no reading fits, operators written with
-    // subscripts only may be read the other way round too (IMSRG papers
-    // write Hermitian operators in either order: \chi_{ai} \Gamma_{ajkl}).
-    match orient_with(term, external, has_lhs, false) {
-        Ok(r) => Ok(r),
-        Err(e) => orient_with(term, external, has_lhs, true).map_err(|_| e),
-    }
+    // As written: the first half of the indices are outgoing.
+    orient_with(term, external, has_lhs, false).map_err(|e| {
+        // t^{ab}_{ij}: a superscript that looks like indices is a label.
+        let looks_like_indices = term.tensors.iter().find_map(|t| {
+            let (base, label) = t.name.split_once("^{")?;
+            let label = label.strip_suffix('}')?;
+            indices(label).ok().map(|_| format!("{base}^{{{label}}}"))
+        });
+        match looks_like_indices {
+            Some(n) => format!(
+                "{e} (note: the superscript of {n} is a label, not indices; all indices go in the subscript, X_{{pqrs}})"
+            ),
+            None => e,
+        }
+    })
 }
 
 fn orient_with(
@@ -1261,31 +1245,54 @@ fn lines(term: &Term, external: &[String], has_lhs: bool) -> Result<Vec<Line>, S
 /// outgoing end, a hole line below.
 fn levels(n: usize, lines: &[Line]) -> Result<Vec<usize>, String> {
     // below[a] contains b: operator a is below operator b.
+    // Particle and hole lines decide the order. A general line (no arrow)
+    // only separates its two operators, upward from where it is outgoing
+    // if that fits, else the other way.
+    let longest = |edges: &[(usize, usize)]| -> Option<Vec<usize>> {
+        let mut level = vec![0usize; n];
+        for _ in 0..=n {
+            let mut changed = false;
+            for &(a, b) in edges {
+                if level[b] < level[a] + 1 {
+                    level[b] = level[a] + 1;
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Some(level);
+            }
+        }
+        None
+    };
     let mut edges: Vec<(usize, usize)> = Vec::new();
+    let mut general: Vec<(usize, usize)> = Vec::new();
     for l in lines {
         if let (Some(o), Some(i)) = (l.out, l.inn)
             && o.t != i.t
         {
-            edges.push(match l.kind {
-                Kind::Particle | Kind::General => (o.t, i.t),
-                Kind::Hole => (i.t, o.t),
-            });
-        }
-    }
-    let mut level = vec![0usize; n];
-    for _ in 0..=n {
-        let mut changed = false;
-        for &(a, b) in &edges {
-            if level[b] < level[a] + 1 {
-                level[b] = level[a] + 1;
-                changed = true;
+            match l.kind {
+                Kind::Particle => edges.push((o.t, i.t)),
+                Kind::Hole => edges.push((i.t, o.t)),
+                Kind::General => general.push((o.t, i.t)),
             }
         }
-        if !changed {
-            return Ok(level);
+    }
+    if longest(&edges).is_none() {
+        return Err(
+            "the operators cannot be ordered in time: the particle and hole lines form a cycle"
+                .into(),
+        );
+    }
+    for (a, b) in general {
+        for e in [(a, b), (b, a)] {
+            edges.push(e);
+            if longest(&edges).is_some() {
+                break;
+            }
+            edges.pop();
         }
     }
-    Err("the operators cannot be ordered in time: the lines form a cycle".into())
+    Ok(longest(&edges).expect("acyclic"))
 }
 
 /// Calls `f` with every permutation of `0..n` (Heap's algorithm).
@@ -2325,22 +2332,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_both_index_styles() {
-        let eq = parse(r"E2=\sum_{abij} \frac{1}{4} V_ijab * T^{ab}_{ij}").unwrap();
+    fn operator_form() {
+        let eq = parse(r"E2=\sum_{abij} \frac{1}{4} V_{ijab} * T_{abij}").unwrap();
         assert_eq!(eq.lhs.as_deref(), Some("E2"));
         assert!(eq.external.is_empty());
         let t = &eq.terms[0];
         assert_eq!(t.factor.as_deref(), Some(r"\frac{1}{4}"));
         assert_eq!(t.tensors[0].bra, vec!["i", "j"]);
-        assert!(t.tensors[1].flexible);
         assert_eq!(t.tensors[0].ket, vec!["a", "b"]);
         assert_eq!(t.tensors[1].bra, vec!["a", "b"]);
         assert_eq!(t.tensors[1].ket, vec!["i", "j"]);
+        // The superscript is part of the name, shown as written.
+        let eq = parse(r"E = V^{1a}_{ijab} \Gamma^{(2)}_{abij}").unwrap();
+        assert_eq!(eq.terms[0].tensors[0].name, "V^{1a}");
+        assert_eq!(eq.terms[0].tensors[1].name, r"\Gamma^{(2)}");
+        assert!(is_interaction("V^{1a}") && is_interaction(r"\Gamma^{(2)}"));
+        // Spaces do not matter.
+        let a = parse(r"E = \sum _{ ab ij } V _{i j a b} T^{x}_{ a b i j }").unwrap();
+        assert_eq!(a.terms[0].tensors[1].bra, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn rejected_forms() {
+        for (src, says) in [
+            (r"E = V_ijab T_{abij}", "braces"),
+            (r"E = V_{ijab} T^{ab}", "not a vertex"),
+            (r"E = V_{ijab} T{abij}", "not a vertex"),
+            (r"E = \langle ij||ab \rangle T_{abij}", "V_{pqrs}"),
+            (r"E = V_{i1ab} T_{abij}", "index"),
+            (r"E = V_{a1ij} T_{ija1}", "index"),
+            (r"E = V_{i'jab} T_{abi'j}", "index"),
+            (r"E = V_{12ab} T_{ab12}", "index"),
+            (r"E = V_{iJab} T_{abiJ}", "index"),
+            (r"E = sum_{ab} V_{ijab} T_{abij}", r"\sum"),
+            (r"E = V_{ija} T_{ab}", "even"),
+        ] {
+            let e = parse(src)
+                .and_then(|eq| diagram(&eq).map(|_| ()))
+                .unwrap_err();
+            assert!(e.contains(says), "{src}: {e}");
+        }
     }
 
     #[test]
     fn mbpt2_energy() {
-        let d = from_latex(r"E2=\sum_abij V_ijab * T_abij").unwrap().doc;
+        let d = from_latex(r"E2=\sum_{abij} V_{ijab} * T_{abij}")
+            .unwrap()
+            .doc;
         // V above T, each V vertex over a T vertex, two arcs per pair.
         let y = |id: &str| d.vertices.iter().find(|v| v.id == id).unwrap().at;
         assert_eq!(y("V1_1")[1], 60.0);
@@ -2361,7 +2399,7 @@ mod tests {
 
     #[test]
     fn open_diagram() {
-        let d = from_latex(r"Z_abic=V_abef* S_efic").unwrap().doc;
+        let d = from_latex(r"Z_{abic}=V_{abef}* S_{efic}").unwrap().doc;
         let ends: Vec<&str> = d
             .vertices
             .iter()
@@ -2386,18 +2424,14 @@ mod tests {
 
     #[test]
     fn errors_are_explained() {
-        let e = from_latex("E=V_ijab T_abik").unwrap_err();
+        let e = from_latex(r"E=V_{ijab} T_{abik}").unwrap_err();
         assert!(e.contains("index"), "{e}");
-        let e = from_latex("E=V_ija").unwrap_err();
-        assert!(e.contains("odd"), "{e}");
-        let e = from_latex("E=V_ijab T_abij T_abij").unwrap_err();
+        let e = from_latex(r"E=V_{ijab} T_{abij} T_{abij}").unwrap_err();
         assert!(e.contains("twice"), "{e}");
     }
 
     #[test]
-    fn one_body_amplitudes_and_strict_latex() {
-        let e = from_latex(r"Z_{ai} = \sum_{ekjb} V_{kjeb} T_{ek} T{aj} T{bi}").unwrap_err();
-        assert!(e.contains("write T_{aj}"), "{e}");
+    fn one_body_amplitudes() {
         let d = from_latex(r"Z_{ai} = \sum_{ekjb} V_{kjeb} T_{ek} T_{aj} T_{bi}")
             .unwrap()
             .doc;
@@ -2413,7 +2447,9 @@ mod tests {
     #[test]
     fn ladders_keep_their_width() {
         // Every internal line between operators is vertical.
-        let d = from_latex(r"Z_abcd = V_baji V_jilk T_lkdc").unwrap().doc;
+        let d = from_latex(r"Z_{abcd} = V_{baji} V_{jilk} T_{lkdc}")
+            .unwrap()
+            .doc;
         let at = |id: &str| d.vertices.iter().find(|v| v.id == id).unwrap().at;
         for e in d
             .edges
@@ -2441,28 +2477,19 @@ mod tests {
     }
 
     #[test]
-    fn ccsd_doubles_equation() {
+    fn rows_parentheses_and_permutations() {
         let src = r"\begin{aligned}
-0 &= \langle ij || ab \rangle + P(ab) \sum_e t_{ij}^{ae} \left( \mathcal{F}_b^e - \frac{1}{2} \sum_m t_m^b \mathcal{F}_m^e \right) - P(ij) \sum_m t_{im}^{ab} \left( \mathcal{F}_m^j + \frac{1}{2} \sum_e t_j^e \mathcal{F}_m^e \right) \\
-&\quad + \frac{1}{2} \sum_{mn} \tau_{mn}^{ab} \mathcal{W}_{mn}^{ij} + \frac{1}{2} \sum_{ef} \tau_{ij}^{ef} \mathcal{W}_{ab}^{ef} + P(ij) P(ab) \sum_{me} \left( t_{im}^{ae} \mathcal{W}_{mb}^{ej} - t_i^e t_m^a \langle mb || ej \rangle \right) \\
-&\quad + P(ij) \sum_e t_i^e \langle ab || ej \rangle - P(ab) \sum_m t_m^a \langle mb || ij \rangle
+0 &= V_{abij} + P(ab) \sum_e T_{aeij} \left( \mathcal{F}_{be} - \frac{1}{2} \sum_m T_{bm} \mathcal{F}_{me} \right) \\
+&\quad + \frac{1}{2} \sum_{mn} T_{abmn} \mathcal{W}_{mnij}
 \end{aligned}";
         let eq = parse(src).unwrap();
-        // 1 + 2 + 2 | 1 + 1 + 2 | 1 + 1
-        assert_eq!(
-            eq.terms.len(),
-            11,
-            "{:#?}",
-            eq.terms
-                .iter()
-                .map(|t| t.tensors.iter().map(|x| x.name.clone()).collect::<Vec<_>>())
-                .collect::<Vec<_>>()
-        );
-        assert_eq!(eq.terms.iter().map(|t| t.row).max(), Some(2));
+        assert_eq!(eq.terms.len(), 4);
+        assert_eq!(eq.terms.iter().map(|t| t.row).max(), Some(1));
         assert_eq!(eq.terms[2].sign, -1.0);
         assert_eq!(eq.terms[2].factor.as_deref(), Some(r"\frac{1}{2}"));
-        let d = diagram(&eq).unwrap().doc;
-        assert_eq!(d.groups.len(), 11);
+        let d = diagram(&eq).unwrap();
+        assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+        assert_eq!(d.doc.groups.len(), 4);
     }
 
     #[test]
@@ -2472,7 +2499,7 @@ mod tests {
         assert_eq!(d.warnings.len(), 1, "{:?}", d.warnings);
         assert!(d.warnings[0].starts_with("term 2"), "{}", d.warnings[0]);
         assert!(
-            from_latex("E = V_{mnef} T_{ijab}").is_err(),
+            from_latex(r"E = V_{mnef} T_{ijab}").is_err(),
             "nothing valid is an error"
         );
     }
@@ -2485,27 +2512,34 @@ mod tests {
         );
         assert_eq!(indices("a_{1}b_2").unwrap(), vec!["a_1", "b_2"]);
         assert!(indices("_1").is_err());
-        let eq = parse(
-            r"Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}",
-        )
-        .unwrap();
+        let src = r"Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}";
+        let eq = parse(src).unwrap();
         assert_eq!(eq.external, vec!["a_1", "a_2", "h_1", "h_2"]);
         let t = &eq.terms[0];
         assert_eq!(kind_in(t, "b_1"), Kind::Particle);
         assert_eq!(kind_in(t, "h_1"), Kind::Hole);
         assert_eq!(kind_in(t, "g"), Kind::Particle);
         assert_eq!(kind_in(t, "h"), Kind::Hole);
-        let d = from_latex(
-            r"Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}",
-        )
-        .unwrap()
-        .doc;
+        let d = from_latex(src).unwrap().doc;
         assert!(d.edges.iter().any(|e| e.label.as_deref() == Some("$b_1$")));
         crate::scene::build(&d).expect("valid ids");
     }
 
     #[test]
-    fn gamma_is_just_a_name_with_cc_indices() {
+    fn letters_decide_not_names() {
+        // Γ with a general orbital p next to a hole h: h stays a hole.
+        let d = from_latex(r"Z_{abcd}=\sum_{ph}\Gamma_{ahcp}*T_{pbhd}")
+            .unwrap()
+            .doc;
+        let class = |l: &str| {
+            d.edges
+                .iter()
+                .find(|e| e.label.as_deref() == Some(l))
+                .and_then(|e| e.class.clone())
+        };
+        assert_eq!(class("$h$").as_deref(), Some("hole"));
+        assert_eq!(class("$p$").as_deref(), Some("line"));
+        assert_eq!(class("$a$").as_deref(), Some("particle"));
         // MBPT(2) with Γ instead of V: the same diagram, Γ as the label.
         let v = from_latex(r"E = \frac{1}{4} \sum_{ijab} V_{ijab} V_{abij}")
             .unwrap()
@@ -2519,12 +2553,16 @@ mod tests {
             c
         };
         assert_eq!(classes(&v), classes(&g));
-        assert!(
-            g.edges
-                .iter()
-                .any(|e| e.label.as_deref() == Some("$\\Gamma$"))
-        );
-        assert!(from_latex(r"E = \Gamma_{ijab} T_{abij}").is_ok());
+        assert!(from_latex(r"E2 = \sum_{abij} \Gamma_{ijab} T_{abij}").is_ok());
+    }
+
+    #[test]
+    fn general_lines_do_not_order_operators() {
+        // All general: no particle/hole direction, still drawable.
+        let d = from_latex(r"E = \sum_{pqrs} A_{pqrs} B_{rspq}").unwrap();
+        assert!(d.warnings.is_empty());
+        let d = from_latex(r"Z_{pq} = \sum_{r} \eta_{pr} f_{rq}").unwrap();
+        assert!(d.warnings.is_empty());
     }
 
     #[test]
@@ -2540,35 +2578,31 @@ mod tests {
         // (1 - n_a - n_b) = \bar n_a \bar n_b - n_a n_b.
         let eq = parse(r"Z_{pq} = \sum_{ab} (1 - n_a - n_b) A_{pqab} B_{abpq}").unwrap();
         let signs: Vec<f64> = eq.terms.iter().map(|t| t.sign).collect();
-        assert_eq!(
-            eq.terms.len(),
-            2,
-            "{:?}",
-            eq.terms.iter().map(|t| &t.classes).collect::<Vec<_>>()
-        );
+        assert_eq!(eq.terms.len(), 2);
         assert!(signs.contains(&1.0) && signs.contains(&-1.0));
-        // External lines and indices without a factor are general: no arrows.
-        let d = from_latex(r"\frac{d f_{12}}{ds} = \sum_a (1 + P_{12}) \eta_{1a} f_{a2}")
+        // With occupation factors, indices without one are general: no arrows.
+        let d = from_latex(r"Z_{pq} = \sum_{ab} n_a A_{pa} B_{aq}")
             .unwrap()
             .doc;
+        assert!(
+            d.edges
+                .iter()
+                .filter(|e| e.class.as_deref() == Some("line"))
+                .all(|e| e.arrow.is_none())
+        );
         assert_eq!(
             d.edges
                 .iter()
                 .filter(|e| e.class.as_deref() == Some("line"))
                 .count(),
-            3,
-            "IMSRG notation (\\eta): 1, 2 and a are general orbitals"
-        );
-        assert!(
-            d.edges
-                .iter()
-                .all(|e| e.class.as_deref() != Some("line") || e.arrow.is_none())
+            2,
+            "p and q are general"
         );
     }
 
     #[test]
     fn several_terms_and_one_body() {
-        let d = from_latex(r"Z_ai = f_ac T_ci - f_ki T_ak + V_kaci T_ck")
+        let d = from_latex(r"Z_{ai} = f_{ac} T_{ci} - f_{ki} T_{ak} + V_{kaci} T_{ck}")
             .unwrap()
             .doc;
         assert_eq!(d.groups.len(), 3);

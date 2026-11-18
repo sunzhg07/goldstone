@@ -347,16 +347,16 @@ pub const ZH: &[(&str, &str)] = &[
     ),
     ("Conventions", "约定"),
     (
-        "X_{pqrs} = ⟨pq|X|rs⟩: the first half of the indices are outgoing (bra), the second incoming (ket). X^{pq}_{rs} means the same.",
-        "X_{pqrs} = ⟨pq|X|rs⟩：前一半指标为出射（bra），后一半为入射（ket）。X^{pq}_{rs} 含义相同。",
+        "An operator is X^{label}_{pqrs} = ⟨pq|X|rs⟩: the first half of the indices are outgoing (bra), the second incoming (ket); the optional superscript is part of the name.",
+        "算符写作 X^{label}_{pqrs} = ⟨pq|X|rs⟩：前一半指标为出射（bra），后一半为入射（ket）；上标可选，是名称的一部分。",
     ),
     (
-        "a–g are particles (arrow up), h–n holes (arrow down); for more, number them: a_1, a_2, b_1, …, h_1, h_2, i_1, …. An index used twice is an internal line; one used once is external and must stand on the left.",
-        "a–g 为粒子（箭头向上），h–n 为空穴（箭头向下）；指标不够时可加编号：a_1、a_2、b_1、…、h_1、h_2、i_1、…。出现两次的指标为内线；只出现一次的为外线，且须出现在左边。",
+        "An index is a or a_1 (nothing else). a–g are particles (arrow up), h–n holes (arrow down), numbered or not; other letters are general. An index used twice is an internal line; one used once is external and must stand on the left.",
+        "指标只能写作 a 或 a_1。a–g 为粒子（箭头向上），h–n 为空穴（箭头向下），编号与否相同；其他字母为一般轨道。出现两次的指标为内线；只出现一次的为外线，且须出现在左边。",
     ),
     (
-        "V W v w g H F f U are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar).",
-        "V W v w g H F f U 为相互作用（虚线；单体：---X）；其他名称（T、S、R…）为振幅（粗横线）。",
+        "V W v w g H F f U \\Gamma are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar).",
+        "V W v w g H F f U \\Gamma 为相互作用（虚线；单体：---X）；其他名称（T、S、R…）为振幅（粗横线）。",
     ),
     (
         "Terms: + and -; prefactors such as \\frac{1}{4} are kept; \\sum, *, \\cdot are ignored.",
@@ -616,8 +616,8 @@ pub const ZH: &[(&str, &str)] = &[
     ("Next tab", "下一个标签页"),
     ("Previous tab", "上一个标签页"),
     (
-        "Diagram from LaTeX: draw a tensor expression such as E2 = V_ijab T_abij",
-        "从 LaTeX 生成图：绘制张量表达式，如 E2 = V_ijab T_abij",
+        "Diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij}",
+        "从 LaTeX 生成图：绘制张量表达式，如 E2 = V_{ijab} T_{abij}",
     ),
     ("Show keyboard shortcuts", "显示键盘快捷键"),
     // ---- keyboard reference: mouse -------------------------------------------------

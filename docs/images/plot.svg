@@ -164,7 +164,7 @@ width = 1
 [[group]]
 id = "plot"
 members = ["plot_axes", "plot_arrows", "plot_ticks", "plot_f1", "plot_f2", "plot_f3", "plot_xt1", "plot_xt2", "plot_xt3", "plot_xt4", "plot_xt5", "plot_xt6", "plot_yt7", "plot_yt8", "plot_yt9", "plot_yt10", "plot_origin", "plot_xlabel", "plot_ylabel", "plot_l1", "plot_l2", "plot_l3"]
-plot= { functions = 'sin(x); cos(x); \frac{1}{1+x^2}', x = ["-2pi", "2pi"], size = [200, 130], x_label = "$x$", y_label = "$y$" }
+plot = { functions = 'sin(x); cos(x); \frac{1}{1+x^2}', x = ["-2pi", "2pi"], size = [200, 130], x_label = "$x$", y_label = "$y$" }
 ]]></goldstone:source></metadata>
 <rect x="-5.602" y="-153.176" width="228.178" height="160.928" fill="#ffffff"/>
 <!-- plot_axes --><path d="M0 -65 L207 -65 M100 0 L100 -137" fill="none" stroke="#000000" stroke-width="0.6"/>

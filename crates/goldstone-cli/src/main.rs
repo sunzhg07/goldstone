@@ -101,7 +101,7 @@ enum Command {
     /// Draw the diagram of a tensor expression written in LaTeX, e.g.
     /// "E2 = \sum_{abij} V_{ijab} T_{abij}" or "Z_{abic} = V_{abef} S_{efic}".
     ///
-    /// X_{pqrs} = <pq|X|rs>; a–g are particles, h–n holes (also numbered: a_1, h_2). Without
+    /// An operator is X^{label}_{pqrs} = <pq|X|rs>; an index is a or a_1; a–g are particles, h–n holes, other letters general. Without
     /// --output the .gold text is printed; with --output ending in .gold it
     /// is saved, any other extension (.pdf .svg .png .tikz .tex) renders it.
     Latex {

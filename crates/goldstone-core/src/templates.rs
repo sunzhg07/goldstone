@@ -769,7 +769,7 @@ const MANY_BODY: &[(&str, &str)] = &[
     ),
     (
         "IMSRG one-body flow",
-        r"\frac{df_{12}}{ds} = \sum_{a} \eta_{1a} f_{a2}",
+        r"\frac{df_{pq}}{ds} = \sum_{r} \eta_{pr} f_{rq}",
     ),
 ];
 

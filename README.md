@@ -18,7 +18,7 @@ Firefox, Safari).
 ## From LaTeX to diagram
 
 ```sh
-goldstone latex 'E^{(2)} = \frac{1}{4} \sum_{ijab} \langle ij || ab \rangle t_{ij}^{ab}' -o mbpt2.pdf
+goldstone latex 'E^{(2)} = \frac{1}{4} \sum_{ijab} V_{ijab} t_{abij}' -o mbpt2.pdf
 ```
 
 ![MBPT2 energy](docs/images/mbpt2.svg)
@@ -34,25 +34,23 @@ goldstone latex 'Z_{abic} = \sum_{ef} V_{abef} S_{efic}' -o open.pdf
 Sums of terms become rows of diagrams, with prefactors and signs:
 
 ```sh
-goldstone latex '0 = \frac{1}{2} \sum_{cd} \langle ab||cd \rangle t_{ij}^{cd}
-  + \frac{1}{2} \sum_{kl} \langle kl||ij \rangle t_{kl}^{ab}
-  + P(ij) P(ab) \sum_{kc} \langle kb||cj \rangle t_{ik}^{ac}
-  + \frac{1}{4} \sum_{klcd} \langle kl||cd \rangle t_{ij}^{cd} t_{kl}^{ab}' -o ccd.pdf
+goldstone latex '0 = \frac{1}{2} \sum_{cd} V_{abcd} t_{cdij}
+  + \frac{1}{2} \sum_{kl} V_{klij} t_{abkl}
+  + P(ij) P(ab) \sum_{kc} V_{kbcj} t_{acik}
+  + \frac{1}{4} \sum_{klcd} V_{klcd} t_{cdij} t_{abkl}' -o ccd.pdf
 ```
 
 ![CCD amplitude equation](docs/images/ccd.svg)
 
-Equations as printed in papers work as they are — `aligned`, `\\` rows,
-`\left( … \right)` multiplied out, `\mathcal{F}`, `\mathcal{W}`, `\tau`,
-`P(ij)` (left out), and either index convention (`t_{ij}^{ab}` or
-`\mathcal{W}_{mn}^{ij}`). The CCSD doubles equation of Stanton and Gauss:
+`aligned`, `\\` rows and `\left( … \right)` (multiplied out) work; when
+there are not enough letters, number the indices (`a_1 a_2 … h_1 h_2 …`):
 
-![CCSD T2 equation](docs/images/ccsd.svg)
+![Numbered indices](docs/images/ccsd.svg)
 
 ### IMSRG and VS-IMSRG
 
-Indices are general orbitals; occupation factors decide each line:
-`n_a` hole, `\bar n_a` or `(1 - n_a)` particle. They are multiplied out
+Occupation factors decide each line: `n_a` hole, `\bar n_a` or
+`(1 - n_a)` particle. They are multiplied out
 into one diagram per particle–hole assignment; external lines and lines
 without a factor have no arrow.
 
@@ -73,12 +71,12 @@ goldstone latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_
 
 | Notation | Meaning |
 |---|---|
-| `X_{pqrs}` | ⟨pq\|X\|rs⟩: first half outgoing (bra), second half incoming (ket); `X^{pq}_{rs}` the same |
-| `a`–`g` / `h`–`n` | particles (arrow up) / holes (arrow down) in CC notation; numbered when more are needed: `a_1 a_2 b_1 …` / `h_1 h_2 i_1 …` |
-| `V W v w g H F f U` | interactions: dashed line, one-body `---X` |
+| `X^{label}_{pqrs}` | an operator: ⟨pq\|X\|rs⟩, first half outgoing (bra), second half incoming (ket); the optional superscript is part of the name (`V^{1a}`) |
+| `a` or `a_1` | the only index forms; `a`–`g` / `h`–`n` particles (arrow up) / holes (arrow down), numbered or not; other letters general |
+| `V W v w g H F f U \Gamma` | interactions: dashed line, one-body `---X` |
 | other names (`t`, `T`, `\tau`, `S`, …) | amplitudes: thick bar |
 | `\hat J`, `(-1)^{…}`, 6j symbols, `\delta`, `^{J}` | not part of the diagram, left out |
-| `T{aj}` and other non-LaTeX | an error that says what to write |
+| `V_ijab`, `t^{ab}_{ij}`, `\langle ij\|\|ab\rangle`, `a1`, `sum` | rejected, with a message that says what to write |
 
 ### Function plots
 

@@ -659,7 +659,7 @@ pub const BINDINGS: &[Binding] = &[
         CMD_SHIFT,
         Key::T,
         Action::FromLatex,
-        "Diagram from LaTeX: draw a tensor expression such as E2 = V_ijab T_abij",
+        "Diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij}",
         FILE,
     )),
     b(CMD, Key::Q, Action::Quit, "Quit", FILE),

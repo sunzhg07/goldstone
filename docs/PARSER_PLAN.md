@@ -87,8 +87,9 @@ are general, drawn without arrows, to keep diagrams light. Occupation
 factors are multiplied out into definite particle–hole diagrams
 (`(n_a-n_b)` → two diagrams, `(1-n_a-n_b)` → `\bar n_a\bar n_b - n_a n_b`,
 `n_a\bar n_a` = 0, equal terms added, cancelling ones dropped). IMSRG
-notation is recognised by occupation factors or the operators η, Γ, Ω, χ;
-digit orbitals (`f_{12}`, `\eta_{1a}`) work. General external lines go to
+notation is recognised by occupation factors; otherwise the letters decide
+(a–g particles, h–n holes, other letters and digits general), never the
+operator's name. Digit orbitals (`f_{12}`, `\eta_{1p}`) work. General external lines go to
 the nearest edge (down from the bottom operator, up from the top one).
 
 Original plan for C:

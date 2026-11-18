@@ -136,6 +136,11 @@ id = "eq"
 at = [0, 30]
 content = "$Z_{abic} =$"
 anchor = "west"
+
+[[group]]
+id = "eq2"
+members = ["V1_2", "V1_1", "S2_2", "S2_1", "a_end", "b_end", "i_end", "c_end", "V1", "S2", "e", "f", "a", "b", "i", "c", "eq"]
+latex = 'Z_{abic} = \sum_{ef} V_{abef} S_{efic}'
 ]]></goldstone:source></metadata>
 <rect x="-4" y="-98.5" width="166.225" height="137" fill="#ffffff"/>
 <!-- V1 --><path d="M66.1 -60 L126.1 -60" fill="none" stroke="#000000" stroke-width="1" stroke-dasharray="4 3"/>
