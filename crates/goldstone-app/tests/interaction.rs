@@ -553,3 +553,53 @@ fn undo_button_after_drawing_and_latex() {
     h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
     h.run_steps(4);
 }
+
+#[test]
+fn redo_a_delete_with_the_line_selected() {
+    let mut h = harness();
+    h.key_press(Key::B);
+    h.run_steps(2);
+    click(&mut h, 0.0, 0.0);
+    click(&mut h, 0.0, 40.0);
+    h.key_press(Key::S);
+    h.run_steps(2);
+    let redo = |n: &egui_kittest::kittest::AccessKitNode<'_>| {
+        n.label().is_some_and(|l| l == "Redo") && n.role() == egui::accesskit::Role::Button
+    };
+    let undo = |n: &egui_kittest::kittest::AccessKitNode<'_>| {
+        n.label().is_some_and(|l| l == "Undo") && n.role() == egui::accesskit::Role::Button
+    };
+    // Delete everything, undo (it comes back), select it, redo the delete
+    // with the button: the selection must not point at deleted objects.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    h.key_press(Key::Delete);
+    h.run_steps(3);
+    assert!(h.state().document().edges.is_empty());
+    h.get_by(undo).click();
+    h.run_steps(3);
+    assert_eq!(h.state().document().edges.len(), 1);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    assert!(!h.state().selected().is_empty());
+    h.get_by(redo).click();
+    h.run_steps(4);
+    assert!(h.state().document().edges.is_empty());
+    assert!(
+        h.state().selected().is_empty(),
+        "nothing deleted stays selected"
+    );
+    // The same through the Edit menu.
+    h.get_by(undo).click();
+    h.run_steps(3);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    h.get_by_label("Edit").click();
+    h.run_steps(2);
+    h.get_all_by(|n| n.label().is_some_and(|l| l.starts_with("Redo")))
+        .last()
+        .unwrap()
+        .click();
+    h.run_steps(4);
+    assert!(h.state().document().edges.is_empty());
+}
