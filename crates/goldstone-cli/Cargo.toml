@@ -14,3 +14,6 @@ clap = { version = "4", features = ["derive"] }
 goldstone-app = { path = "../goldstone-app" }
 goldstone-core = { path = "../goldstone-core" }
 goldstone-export = { path = "../goldstone-export" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Console"] }

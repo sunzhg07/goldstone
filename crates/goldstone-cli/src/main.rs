@@ -1,5 +1,10 @@
 //! `goldstone` command-line tool.
 
+// On Windows the program is a windowed (GUI) program, so opening the editor
+// shows no console window; run from a terminal, it attaches to that
+// terminal for the command-line output (see `attach_console`).
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -631,7 +636,22 @@ fn tex_batch(
     Ok(())
 }
 
+/// Windows: when started from a terminal, write to it (a windowed program
+/// has no console of its own). Double-clicked, there is no terminal and
+/// nothing happens.
+#[cfg(windows)]
+fn attach_console() {
+    use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
+    // SAFETY: plain Win32 call without pointers; failure (no parent
+    // console) is harmless.
+    unsafe {
+        AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+}
+
 fn main() -> ExitCode {
+    #[cfg(windows)]
+    attach_console();
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(errors) => {

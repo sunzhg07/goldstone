@@ -2010,6 +2010,7 @@ dependencies = [
  "goldstone-app",
  "goldstone-core",
  "goldstone-export",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
