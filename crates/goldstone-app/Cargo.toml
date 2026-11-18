@@ -7,14 +7,14 @@ license.workspace = true
 [dependencies]
 eframe = "0.37"
 egui = "0.37"
-goldstone-core = { version = "0.2.1", path = "../goldstone-core" }
-goldstone-export = { version = "0.2.1", path = "../goldstone-export" }
+goldstone-core = { version = "0.3.0", path = "../goldstone-core" }
+goldstone-export = { version = "0.3.0", path = "../goldstone-export" }
 rfd = "0.18"
 serde_json = "1"
 toml = "1"
 
 [dev-dependencies]
-goldstone-export = { version = "0.2.1", path = "../goldstone-export" }
+goldstone-export = { version = "0.3.0", path = "../goldstone-export" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot", "eframe"] }
 

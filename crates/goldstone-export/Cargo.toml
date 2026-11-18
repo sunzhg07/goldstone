@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-goldstone-core = { version = "0.2.1", path = "../goldstone-core" }
+goldstone-core = { version = "0.3.0", path = "../goldstone-core" }
 mitex = "0.2.4"
 resvg = "0.45"
 svg2pdf = "0.13.0"
