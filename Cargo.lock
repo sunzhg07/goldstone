@@ -2004,7 +2004,7 @@ dependencies = [
 
 [[package]]
 name = "goldstone"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "goldstone-app",
@@ -2015,7 +2015,7 @@ dependencies = [
 
 [[package]]
 name = "goldstone-app"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "block2 0.6.2",
  "eframe",
@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "goldstone-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "kurbo 0.13.1",
  "linesweeper",
@@ -2050,7 +2050,7 @@ dependencies = [
 
 [[package]]
 name = "goldstone-export"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "goldstone-core",
  "mitex",
@@ -2064,7 +2064,7 @@ dependencies = [
 
 [[package]]
 name = "goldstone-web"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "eframe",
  "goldstone-app",
