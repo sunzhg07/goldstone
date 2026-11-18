@@ -628,6 +628,8 @@ impl GoldstoneApp {
                     ),
                     None => ui.add_enabled(enabled, egui::Button::new(t(label))),
                 };
+                // Icon buttons carry their name for screen readers (and tests).
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, t(label)));
                 if r.on_hover_text(tip).clicked() {
                     chosen = Some(action);
                 }

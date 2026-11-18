@@ -510,3 +510,46 @@ fn templates_menu_inserts_a_shape() {
     assert_eq!(d.shapes[0].points.as_ref().map(|p| p.len()), Some(10));
     assert_eq!(h.state().selected().len(), 1);
 }
+
+#[test]
+fn undo_button_after_drawing_and_latex() {
+    let mut h = harness();
+    // A selected line, then Undo from the commands bar.
+    h.key_press(Key::B);
+    h.run_steps(2);
+    click(&mut h, 0.0, 0.0);
+    click(&mut h, 0.0, 40.0);
+    h.key_press(Key::S);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(3);
+    h.get_by(|n| {
+        n.label().is_some_and(|l| l == "Undo") && n.role() == egui::accesskit::Role::Button
+    })
+    .click();
+    h.run_steps(4);
+    assert!(h.state().document().edges.is_empty());
+    h.get_by(|n| {
+        n.label().is_some_and(|l| l == "Redo") && n.role() == egui::accesskit::Role::Button
+    })
+    .click();
+    h.run_steps(4);
+    assert_eq!(h.state().document().edges.len(), 1);
+    // A diagram from LaTeX (selected, LaTeX tab open), then Undo.
+    h.key_press_modifiers(
+        Modifiers {
+            shift: true,
+            ..Modifiers::COMMAND
+        },
+        Key::T,
+    );
+    h.run_steps(3);
+    h.get_all_by_label("Insert").last().unwrap().click();
+    h.run_steps(4);
+    h.get_by(|n| {
+        n.label().is_some_and(|l| l == "Undo") && n.role() == egui::accesskit::Role::Button
+    })
+    .click();
+    h.run_steps(4);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+}

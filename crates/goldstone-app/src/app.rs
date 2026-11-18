@@ -1208,6 +1208,23 @@ impl GoldstoneApp {
     }
 
     pub(crate) fn do_action(&mut self, a: Action, ctx: &egui::Context) {
+        self.run_action(a, ctx);
+        // A command may remove objects (undo, delete, …) while the frame is
+        // being drawn; the panels after it must not see them selected.
+        self.selection.retain(|r| doc_ops::exists(&self.doc, *r));
+        if self.hover.is_some_and(|r| !doc_ops::exists(&self.doc, r)) {
+            self.hover = None;
+        }
+        if self
+            .rename
+            .as_ref()
+            .is_some_and(|(i, _)| *i >= self.doc.vertices.len())
+        {
+            self.rename = None;
+        }
+    }
+
+    fn run_action(&mut self, a: Action, ctx: &egui::Context) {
         let canvas = self.canvas_rect;
         match a {
             Action::ToolSelect => self.set_tool(Tool::Select),
