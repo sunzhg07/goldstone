@@ -68,16 +68,66 @@ goldstone srg-latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_
 
 ![IMSRG two-body term](docs/images/imsrg2.svg)
 
-### Conventions
+### The two conventions: CC and IMSRG
 
-| Notation | Meaning |
+Goldstone reads LaTeX with one of two rules: **CC** (`goldstone cc-latex`,
+Insert ▸ CC Diagram from LaTeX) and **IMSRG** (`goldstone srg-latex`,
+Insert ▸ IMSRG Diagram from LaTeX). The syntax is the same and strict;
+only the meaning of the index letters differs.
+
+**Shared syntax**
+
+| Written | Meaning |
 |---|---|
-| `X^{label}_{pqrs}` | an operator: ⟨pq\|X\|rs⟩, first half outgoing (bra), second half incoming (ket); the optional superscript is part of the name (`V^{1a}`) |
-| `a` or `a_1` | the only index forms; `a`–`g` / `h`–`n` particles (arrow up) / holes (arrow down), numbered or not; other letters general |
-| `V W v w g H F f U \Gamma` | interactions: dashed line, one-body `---X` |
-| other names (`t`, `T`, `\tau`, `S`, …) | amplitudes: thick bar |
-| `\hat J`, `(-1)^{…}`, 6j symbols, `\delta`, `^{J}` | not part of the diagram, left out |
-| `V_ijab`, `t^{ab}_{ij}`, `\langle ij\|\|ab\rangle`, `a1`, `sum` | rejected, with a message that says what to write |
+| `X^{label}_{pqrs}` | an operator (vertex): ⟨pq\|X\|rs⟩, first half of the indices outgoing (bra), second half incoming (ket); vertex *k* joins the *k*-th outgoing and *k*-th incoming index (p–r, q–s). Braces are required |
+| `^{label}` | optional, part of the name, shown as written: `V^{1a}`, `\Gamma^{(2)}`, `\eta^{\rm od}` |
+| `V W v w g H F f U \Gamma` | interactions: dashed line (one-body: `---X`); any other name (`T`, `t`, `\tau`, `\eta`, `\Omega`, …) is an amplitude: thick bar |
+| `\sum_{…}`, `*`, `\cdot`, `P(ab)`, `(1+P_{12})` | not drawn (summations, products, permutations) |
+| `\frac{1}{4}`, `-`, `0.5` | prefactor and sign, written before the diagram |
+| `\left( … \right)`, `\begin{aligned} … \\ …` | multiplied out; each `\\` starts a new row of diagrams |
+| `Z_{abij} = …` / `0 = …` / no left side | the left side lists the external lines; `0 =` or no left side takes them from what is left open |
+
+**Index letters**
+
+| | CC rule | IMSRG rule |
+|---|---|---|
+| index forms | `a`, `a_1`, `a_{12}` | `a`, `a_1`, `a_{12}`, and digits `1`…`9` (`f_{12}`, `\Gamma_{1234}`) |
+| `a`–`g` (also `a_1`, `b_2`, …) | particle (arrow up) | general orbital (no arrow) |
+| `h`–`n` (also `h_1`, `i_2`, …) | hole (arrow down) | general orbital |
+| other letters (`p q r s`), digits | general orbital | general orbital |
+| `n_a` / `\bar n_a`, `(1-n_a)` | hole / particle (overrides the letter) | hole / particle |
+| `(n_a - n_b)`, `(1-n_a-n_b)`, `(n_a n_b \bar n_c + \bar n_a \bar n_b n_c)` | multiplied out: one diagram per particle–hole assignment | same |
+| macros | — | `\totd{f_{12}}{s}` (= d f₁₂/ds), `\nn_a` (= \bar n_a) |
+
+The operator's name never changes how its indices are read:
+`\Gamma_{ijab}` has the same lines as `V_{ijab}`.
+
+**Layout** (both rules)
+
+- Top to bottom: particle lines run up, hole lines down; that decides
+  which operator is above which. General lines do not.
+- Left to right: an operator's vertices keep their written order
+  (in `V_{ah_1ef}` the vertex a–e is left of h₁–f), and a line continues
+  in the column of the line it joins, so the written order fixes the
+  picture.
+
+```sh
+goldstone cc-latex '\sum_{efh_1h_2} V_{ah_1ef} V_{efch_2} Z_{h_2bh_1d}'   # numbered holes
+goldstone cc-latex '\sum_{ph} \Gamma^{II}_{ahcp} T_{pbhd}'                # p is a general line
+goldstone srg-latex '\totd{f_{12}}{s} = \sum_{a}(1+P_{12})\eta_{1a}f_{a2} + \sum_{ab}(n_a-n_b)(\eta_{ab}\Gamma_{b1a2}-f_{ab}\eta_{b1a2})'
+```
+
+**Rejected**, with a message that says what to write:
+
+| Written | Why |
+|---|---|
+| `V_ijab`, `t_i^a`, `T{aj}` | braces are required: `V_{ijab}` |
+| `t^{ab}_{ij}` | the superscript is a label; all indices go in the subscript: `t_{abij}` |
+| `\langle ij \|\| ab \rangle` | write the operator: `V_{ijab}` |
+| `a1`, `a'`, capitals; digits in CC | an index is `a` or `a_1` (IMSRG: or a digit) |
+| `sum_{ab}`, `frac{1}{2}` | commands need their backslash |
+| `\Gamma_{diej}` where *d* is outgoing on another operator too | the term relies on hermiticity (Γ<sub>pqrs</sub> = Γ<sub>rspq</sub>); Goldstone does not use it: write `\Gamma_{ejdi}` |
+| commutators, normal-ordered operator strings, operators in a denominator | not diagrams |
 
 ### Function plots
 

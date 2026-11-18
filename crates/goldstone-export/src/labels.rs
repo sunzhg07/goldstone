@@ -115,6 +115,14 @@ fn text_to_mathrm(math: &str) -> String {
     for cmd in ["\\textrm{", "\\textnormal{", "\\text{", "\\mbox{"] {
         out = out.replace(cmd, "\\mathrm{");
     }
+    for (text, math) in [
+        ("\\textbf{", "\\mathbf{"),
+        ("\\textit{", "\\mathit{"),
+        ("\\texttt{", "\\mathtt{"),
+        ("\\textsf{", "\\mathsf{"),
+    ] {
+        out = out.replace(text, math);
+    }
     out
 }
 
@@ -191,7 +199,24 @@ const MITEX_PRELUDE: &str = "#let mitexsqrt(..args) = { let a = args.pos(); if a
 #let mitexdisplay(it) = math.display(it)\n\
 #let mitexmathbf(it) = math.bold(math.upright(it))\n\
 #let mitexoverbrace(it) = math.overbrace(it)\n\
-#let mitexunderbrace(it) = math.underbrace(it)";
+#let mitexunderbrace(it) = math.underbrace(it)\n\
+#let mitexoverbracket(it) = math.overbracket(it)\n\
+#let mitexunderbracket(it) = math.underbracket(it)\n\
+#let mitexupright(it) = math.upright(it)\n\
+#let mitexbold(it) = math.bold(it)\n\
+#let mitexitalic(it) = math.italic(it)\n\
+#let mitexmono(it) = math.mono(it)\n\
+#let mitexsans(it) = math.sans(it)\n\
+#let mitexcal(it) = math.cal(it)\n\
+#let mitexfrak(it) = math.frak(it)\n\
+#let mitexinline(it) = math.inline(it)\n\
+#let mitexscript(it) = math.script(it)\n\
+#let mitexsscript(it) = math.sscript(it)\n\
+#let mitexcolor(..args) = args.pos().last()\n\
+#let mitexref(..args) = []\n\
+#let mitexlabel(..args) = []\n\
+#let mitexcite(..args) = []\n\
+#let mitexcaption(..args) = []";
 
 fn typeset_body(body: &str, content: &str, size: f64, color: Color) -> Result<LabelBox, String> {
     let src = format!(
@@ -250,6 +275,12 @@ mod tests {
             r"$\sqrt[3]{x+1}$",
             r"$\mathbf{r}$",
             r"$\displaystyle \frac{1}{2}$",
+            r"$f^{\rm I}_{ij}$",
+            r"$E_{\rm CC}$",
+            r"$\textbf{x} \textit{y} \texttt{z} \textsf{w}$",
+            r"$\mathcal{W} \mathfrak{g} \scriptstyle a$",
+            r"$\overbracket{x} \underbracket{y}$",
+            r"$\color{red}{x}$",
         ] {
             l.typeset(m, 10.0, Color::BLACK)
                 .unwrap_or_else(|e| panic!("{m}: {e}"));

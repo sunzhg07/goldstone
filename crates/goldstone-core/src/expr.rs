@@ -1181,12 +1181,40 @@ fn orient(
             let label = label.strip_suffix('}')?;
             indices(label, false).ok().map(|_| format!("{base}^{{{label}}}"))
         });
-        match looks_like_indices {
-            Some(n) => format!(
+        if let Some(n) = looks_like_indices {
+            return format!(
                 "{e} (note: the superscript of {n} is a label, not indices; all indices go in the subscript, X_{{pqrs}})"
-            ),
-            None => e,
+            );
         }
+        // Valid only with an operator read in its Hermitian-conjugate order
+        // (X_{pqrs} as X_{rspq}): Goldstone does not use hermiticity.
+        if let Ok(readings) = orient_with(term, external, has_lhs, true)
+            && let Some((t, _)) = readings.first()
+        {
+            let flipped: Vec<String> = term
+                .tensors
+                .iter()
+                .zip(&t.tensors)
+                .filter(|(a, b)| a.bra != b.bra)
+                .map(|(a, b)| {
+                    let ix = |v: &[String], w: &[String]| v.iter().chain(w).cloned().collect::<String>();
+                    format!(
+                        "{}_{{{}}} → {}_{{{}}}",
+                        a.name,
+                        ix(&a.bra, &a.ket),
+                        a.name,
+                        ix(&b.bra, &b.ket)
+                    )
+                })
+                .collect();
+            if !flipped.is_empty() {
+                return format!(
+                    "{e}. This term uses hermiticity (an operator written in its Hermitian-conjugate order), which Goldstone does not use: write {}",
+                    flipped.join(", ")
+                );
+            }
+        }
+        e
     })
 }
 
@@ -2779,12 +2807,16 @@ mod tests {
             2
         );
         // Written in the Hermitian-conjugate order (d outgoing twice): not
-        // accepted, the term is left out with a warning.
-        let d = from_latex_with(
+        // accepted; the message says so and gives the order to write.
+        let e = from_latex_with(
             r"f_{ij} = \sum_{abcde} n_c \Omega_{cdab}\Omega_{abce} \Gamma_{diej}",
             Rule::Srg,
+        )
+        .unwrap_err();
+        assert!(
+            e.contains("hermiticity") && e.contains(r"\Gamma_{diej} → \Gamma_{ejdi}"),
+            "{e}"
         );
-        assert!(d.is_err() || !d.unwrap().warnings.is_empty());
         // \nn is \bar n.
         assert_eq!(
             draws(

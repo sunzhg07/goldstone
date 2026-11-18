@@ -732,6 +732,14 @@ const SRG_TEMPLATES: &[&str] = &["IMSRG(2) energy flow", "IMSRG one-body flow"];
 
 const MANY_BODY: &[(&str, &str)] = &[
     (
+        "Gamma with a general line",
+        r"\sum_{ph} \Gamma^{II}_{ahcp} T_{pbhd}",
+    ),
+    (
+        "Two V and Z, numbered holes",
+        r"\sum_{efh_1h_2}V_{ah_1ef}V_{efch_2}Z_{h_2bh_1d}",
+    ),
+    (
         "MBPT(2) energy",
         r"E^{(2)} = \frac{1}{4} \sum_{ijab} V_{ijab} V_{abij}",
     ),
