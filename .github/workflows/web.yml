@@ -5,10 +5,11 @@
 
 name: Web
 
+# Only main: GitHub Pages accepts deployments from main, and a version tag
+# pushed with main would otherwise cancel main's build (one "pages" slot).
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
