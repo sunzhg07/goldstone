@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-goldstone-app = { version = "0.2.0", path = "../goldstone-app" }
+goldstone-app = { version = "0.2.1", path = "../goldstone-app" }
 eframe = { version = "0.37", features = ["glow"] }
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement"] }
