@@ -1,0 +1,22 @@
+# Goldstone editor icon, drawn on a 24 x 24 pt canvas (origin bottom left).
+# Rendered by Goldstone itself; black and white are re-tinted for the theme.
+format = 1
+# Undo: a hook arrow pointing back to the left.
+
+[[vertex]]
+id = "p1"
+at = [19, 6]
+
+[[vertex]]
+id = "p2"
+at = [5, 14]
+
+[[edge]]
+from = "p1"
+to = "p2"
+bend = -30
+width = 1.8
+arrow = "forward"
+arrow_pos = 0.93
+arrow_length = 7
+arrow_width = 7

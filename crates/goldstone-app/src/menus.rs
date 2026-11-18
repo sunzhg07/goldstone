@@ -65,6 +65,8 @@ fn tool_action(t: Tool) -> Action {
 }
 
 const ICONS: &[&str] = &[
+    "undo",
+    "redo",
     "group",
     "ungroup",
     "union",
@@ -305,6 +307,9 @@ impl GoldstoneApp {
         let mut m = Items::new(self, &ctx, ICONS);
         let any = !self.selection.is_empty();
         let several = self.selection.len() > 1;
+        m.item(ui, Some("undo"), "Undo", Action::Undo);
+        m.item(ui, Some("redo"), "Redo", Action::Redo);
+        ui.separator();
         if any {
             m.item(ui, None, "Cut", Action::Cut);
             m.item(ui, None, "Copy", Action::Copy);

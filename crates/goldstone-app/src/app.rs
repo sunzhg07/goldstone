@@ -255,6 +255,14 @@ impl History {
         }
     }
 
+    fn can_undo(&self, doc: &Document) -> bool {
+        *doc != self.committed || !self.undo.is_empty()
+    }
+
+    fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
+    }
+
     fn undo(&mut self, doc: &mut Document) -> bool {
         if *doc != self.committed {
             *doc = self.committed.clone();
@@ -531,6 +539,15 @@ impl GoldstoneApp {
         } else {
             NO_CJK_FONT.into()
         });
+    }
+
+    /// Whether there is something to undo / redo in this tab.
+    pub(crate) fn can_undo(&self) -> bool {
+        self.history.can_undo(&self.doc)
+    }
+
+    pub(crate) fn can_redo(&self) -> bool {
+        self.history.can_redo()
     }
 
     /// Whether any tab has unsaved changes.

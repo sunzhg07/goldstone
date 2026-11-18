@@ -18,6 +18,8 @@ macro_rules! icons {
 }
 
 icons!(
+    "undo",
+    "redo",
     "select",
     "edit",
     "edge",

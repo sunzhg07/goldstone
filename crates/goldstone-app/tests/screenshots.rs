@@ -83,7 +83,8 @@ fn editor_screenshots() {
         Key::T,
     );
     shoot(&mut h, "11-latex-dialog");
-    h.get_by_label("Insert").click();
+    // The dialog's Insert button (the menu bar has an Insert menu too).
+    h.get_all_by_label("Insert").last().unwrap().click();
     shoot(&mut h, "12-latex-inserted");
 }
 

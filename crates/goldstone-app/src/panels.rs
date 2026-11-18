@@ -53,6 +53,9 @@ const ANCHORS: [(Anchor, &str); 9] = [
 
 /// Buttons of the commands bar: (icon, label, action). `None` is a separator.
 const COMMANDS: &[Option<(&str, &str, Action)>] = &[
+    Some(("undo", "Undo", Action::Undo)),
+    Some(("redo", "Redo", Action::Redo)),
+    None,
     Some(("group", "Group", Action::Group)),
     Some(("ungroup", "Ungroup", Action::Ungroup)),
     None,
@@ -410,6 +413,8 @@ impl GoldstoneApp {
             self,
             &ctx,
             &[
+                "undo",
+                "redo",
                 "group",
                 "ungroup",
                 "union",
@@ -452,8 +457,8 @@ impl GoldstoneApp {
             });
             ui.menu_button(t("Templates"), |ui| self.templates_menu(ui));
             ui.menu_button(t("Edit"), |ui| {
-                item(ui, None, "Undo", Action::Undo);
-                item(ui, None, "Redo", Action::Redo);
+                item(ui, Some("undo"), "Undo", Action::Undo);
+                item(ui, Some("redo"), "Redo", Action::Redo);
                 ui.separator();
                 item(ui, None, "Cut", Action::Cut);
                 item(ui, None, "Copy", Action::Copy);
@@ -608,12 +613,20 @@ impl GoldstoneApp {
                     continue;
                 };
                 let tip = match self.shortcut(action) {
-                    s if s.is_empty() => label.to_string(),
-                    s => format!("{label} ({s})"),
+                    s if s.is_empty() => t(label).to_string(),
+                    s => format!("{} ({s})", t(label)),
+                };
+                let enabled = match action {
+                    Action::Undo => self.can_undo(),
+                    Action::Redo => self.can_redo(),
+                    _ => true,
                 };
                 let r = match self.icon(&ctx, icon, 22.0) {
-                    Some(img) => ui.add(egui::Button::image(img).min_size(egui::vec2(28.0, 28.0))),
-                    None => ui.button(label),
+                    Some(img) => ui.add_enabled(
+                        enabled,
+                        egui::Button::image(img).min_size(egui::vec2(28.0, 28.0)),
+                    ),
+                    None => ui.add_enabled(enabled, egui::Button::new(t(label))),
                 };
                 if r.on_hover_text(tip).clicked() {
                     chosen = Some(action);
