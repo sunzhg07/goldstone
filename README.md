@@ -18,7 +18,7 @@ Firefox, Safari).
 ## From LaTeX to diagram
 
 ```sh
-goldstone latex 'E^{(2)} = \frac{1}{4} \sum_{ijab} V_{ijab} t_{abij}' -o mbpt2.pdf
+goldstone cc-latex 'E^{(2)} = \frac{1}{4} \sum_{ijab} V_{ijab} t_{abij}' -o mbpt2.pdf
 ```
 
 ![MBPT2 energy](docs/images/mbpt2.svg)
@@ -26,7 +26,7 @@ goldstone latex 'E^{(2)} = \frac{1}{4} \sum_{ijab} V_{ijab} t_{abij}' -o mbpt2.p
 Open diagrams: indices that appear once are external lines.
 
 ```sh
-goldstone latex 'Z_{abic} = \sum_{ef} V_{abef} S_{efic}' -o open.pdf
+goldstone cc-latex 'Z_{abic} = \sum_{ef} V_{abef} S_{efic}' -o open.pdf
 ```
 
 ![Open diagram](docs/images/open.svg)
@@ -34,7 +34,7 @@ goldstone latex 'Z_{abic} = \sum_{ef} V_{abef} S_{efic}' -o open.pdf
 Sums of terms become rows of diagrams, with prefactors and signs:
 
 ```sh
-goldstone latex '0 = \frac{1}{2} \sum_{cd} V_{abcd} t_{cdij}
+goldstone cc-latex '0 = \frac{1}{2} \sum_{cd} V_{abcd} t_{cdij}
   + \frac{1}{2} \sum_{kl} V_{klij} t_{abkl}
   + P(ij) P(ab) \sum_{kc} V_{kbcj} t_{acik}
   + \frac{1}{4} \sum_{klcd} V_{klcd} t_{cdij} t_{abkl}' -o ccd.pdf
@@ -47,22 +47,23 @@ there are not enough letters, number the indices (`a_1 a_2 … h_1 h_2 …`):
 
 ![Numbered indices](docs/images/ccsd.svg)
 
-### IMSRG and VS-IMSRG
+### IMSRG
 
-Occupation factors decide each line: `n_a` hole, `\bar n_a` or
-`(1 - n_a)` particle. They are multiplied out
+`goldstone srg-latex` (Insert ▸ IMSRG Diagram from LaTeX in the editor)
+reads every index as a general orbital, letters or digits; occupation
+factors decide each line: `n_a` hole, `\bar n_a` or `(1 - n_a)` particle. They are multiplied out
 into one diagram per particle–hole assignment; external lines and lines
 without a factor have no arrow.
 
 ```sh
-goldstone latex '\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba}
+goldstone srg-latex '\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba}
   + \frac{1}{4} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d' -o imsrg.pdf
 ```
 
 ![IMSRG(2) energy flow](docs/images/imsrg.svg)
 
 ```sh
-goldstone latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_b \bar{n}_l \right) \Gamma_{ijab} \Omega_{abkl}'
+goldstone srg-latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_b \bar{n}_l \right) \Gamma_{ijab} \Omega_{abkl}'
 ```
 
 ![IMSRG two-body term](docs/images/imsrg2.svg)
@@ -105,7 +106,7 @@ or `goldstone templates -o sheet.pdf` for an overview.
 ### A whole document
 
 ```sh
-goldstone paper.tex            # or: goldstone tex paper.tex -f png --out-dir figs
+goldstone paper.tex            # or: goldstone tex paper.tex -f png --out-dir figs (--srg: IMSRG rule)
 ```
 
 finds every equation (`equation`, `align`, `eqnarray`, `\[ \]`, …) and
@@ -126,8 +127,8 @@ Interface in English or 简体中文 (View ▸ Language). Tabs for several diagr
 Vertex, Cross (`---X`), Text, Rectangle and Ellipse tools; snapping;
 rubber-band, Shift and Alt (touch) selection; editing many objects at
 once; groups, copy/paste (as `.gold` text), align and distribute, boolean
-operations on shapes; rulers and object ids with coordinates. **File ▸
-Diagram from LaTeX** (⌘⇧T) inserts a diagram from an equation:
+operations on shapes; rulers and object ids with coordinates. **Insert ▸
+CC / IMSRG Diagram from LaTeX** (⌘⇧T) inserts a diagram from an equation:
 
 ![Diagram from LaTeX dialog](docs/images/latex-dialog.png)
 
@@ -187,7 +188,8 @@ goldstone render fig.gold                    # → fig.pdf
 goldstone render fig.gold -o fig.svg         # format from the extension
 goldstone render figs/*.gold -f tikz --out-dir paper/figs
 goldstone render fig.gold -o slide.png --background white --dpi 600
-goldstone latex '…' -o eq.pdf                # diagram of an equation
+goldstone cc-latex '…' -o eq.pdf             # CC diagram of an equation
+goldstone srg-latex '…' -o eq.pdf            # IMSRG diagram of an equation
 goldstone plot 'sin(x)' --x=-pi:pi -o f.pdf  # function plot
 goldstone templates -o sheet.pdf             # all built-in templates
 goldstone paper.tex                          # every equation of a document

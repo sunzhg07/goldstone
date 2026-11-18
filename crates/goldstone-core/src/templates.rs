@@ -727,6 +727,9 @@ fn equation_shapes() -> Vec<(&'static str, Document)> {
 
 /// Many-body diagrams, drawn from their equations (they stay editable in
 /// the LaTeX tab).
+/// IMSRG templates (read with the IMSRG rule); the others are CC.
+const SRG_TEMPLATES: &[&str] = &["IMSRG(2) energy flow", "IMSRG one-body flow"];
+
 const MANY_BODY: &[(&str, &str)] = &[
     (
         "MBPT(2) energy",
@@ -769,7 +772,7 @@ const MANY_BODY: &[(&str, &str)] = &[
     ),
     (
         "IMSRG one-body flow",
-        r"\frac{df_{pq}}{ds} = \sum_{r} \eta_{pr} f_{rq}",
+        r"\frac{df_{12}}{ds} = \sum_{a} \eta_{1a} f_{a2}",
     ),
 ];
 
@@ -897,7 +900,17 @@ pub fn builtin() -> Vec<Template> {
     add("Equation Shapes", equation_shapes());
     let many: Vec<(&'static str, Document)> = MANY_BODY
         .iter()
-        .filter_map(|(name, tex)| Some((*name, crate::expr::from_latex_editable(tex).ok()?.doc)))
+        .filter_map(|(name, tex)| {
+            let rule = if SRG_TEMPLATES.contains(name) {
+                crate::expr::Rule::Srg
+            } else {
+                crate::expr::Rule::Cc
+            };
+            Some((
+                *name,
+                crate::expr::from_latex_editable_with(tex, rule).ok()?.doc,
+            ))
+        })
         .collect();
     add("Many-Body Diagrams", many);
     let feyn: Vec<(&'static str, Document)> = FEYNMAN

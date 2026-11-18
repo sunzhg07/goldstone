@@ -316,10 +316,14 @@ impl Page {
     }
 }
 
-/// Diagram from LaTeX dialog.
+/// CC / IMSRG Diagram from LaTeX dialog.
 pub struct LatexDialog {
     pub open: bool,
+    /// The rule the equation is read with.
+    pub rule: goldstone_core::expr::Rule,
     pub text: String,
+    /// The text of the other rule's dialog, kept while this one is open.
+    pub(crate) other_text: String,
     /// Result of parsing `text`: a summary, or the error.
     pub status: Result<String, String>,
     /// Terms left out because they are not valid contractions.
@@ -331,7 +335,9 @@ impl Default for LatexDialog {
     fn default() -> Self {
         Self {
             open: false,
+            rule: goldstone_core::expr::Rule::Cc,
             text: r"E2 = \sum_{abij} V_{ijab} T_{abij}".into(),
+            other_text: r"\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba} + \frac{1}{2} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d".into(),
             status: Ok(String::new()),
             warnings: Vec::new(),
             for_text: None,
@@ -1310,7 +1316,8 @@ impl GoldstoneApp {
             Action::ShowAlign => self.tab = Tab::Align,
             Action::Quit if crate::platform::WEB => {}
             Action::Quit => self.request(Pending::Quit, ctx),
-            Action::FromLatex => self.latex.open = true,
+            Action::FromLatex => self.open_latex(goldstone_core::expr::Rule::Cc),
+            Action::FromLatexSrg => self.open_latex(goldstone_core::expr::Rule::Srg),
             Action::FunctionPlot => self.plot.open = true,
             Action::Templates => self.templates.browse = true,
             Action::AddTemplate => self.start_add_template(),
@@ -1467,13 +1474,15 @@ impl GoldstoneApp {
     /// Adds the diagram of the LaTeX expression in the dialog: to the
     /// right of the drawing, or as the whole document (`replace`).
     pub(crate) fn insert_latex(&mut self, replace: bool) {
-        let part = match goldstone_core::expr::from_latex_editable(&self.latex.text) {
-            Ok(d) => d.doc,
-            Err(e) => {
-                self.latex.status = Err(e);
-                return;
-            }
-        };
+        let part =
+            match goldstone_core::expr::from_latex_editable_with(&self.latex.text, self.latex.rule)
+            {
+                Ok(d) => d.doc,
+                Err(e) => {
+                    self.latex.status = Err(e);
+                    return;
+                }
+            };
         if replace {
             self.doc.vertices.clear();
             self.doc.edges.clear();
@@ -1495,6 +1504,17 @@ impl GoldstoneApp {
     pub(crate) fn view_center(&self) -> Point {
         self.view
             .to_doc(self.canvas_rect, self.canvas_rect.center())
+    }
+
+    /// Opens the Diagram from LaTeX dialog for `rule` (CC or IMSRG); each
+    /// keeps its own text.
+    pub(crate) fn open_latex(&mut self, rule: goldstone_core::expr::Rule) {
+        if self.latex.rule != rule {
+            std::mem::swap(&mut self.latex.text, &mut self.latex.other_text);
+            self.latex.rule = rule;
+            self.latex.for_text = None;
+        }
+        self.latex.open = true;
     }
 
     /// Adds `part` to the right of the drawing and selects it.

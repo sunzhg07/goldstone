@@ -265,8 +265,11 @@ impl GoldstoneApp {
             self.code.group = None;
             ui.weak(t("Select a diagram drawn from LaTeX, or a function plot, to edit its equation here; the drawing is redrawn as you type."));
             ui.add_space(8.0);
-            if ui.button(t("Diagram from LaTeX…")).clicked() {
+            if ui.button(t("CC Diagram from LaTeX…")).clicked() {
                 self.do_action(Action::FromLatex, &ctx);
+            }
+            if ui.button(t("IMSRG Diagram from LaTeX…")).clicked() {
+                self.do_action(Action::FromLatexSrg, &ctx);
             }
             if ui.button(t("Function Plot…")).clicked() {
                 self.do_action(Action::FunctionPlot, &ctx);
@@ -285,9 +288,15 @@ impl GoldstoneApp {
         }
         let mut redraw: Option<Result<Document, String>> = None;
         if grp.latex.is_some() {
+            let rule = goldstone_core::expr::Rule::from_stored(grp.latex_rule.as_deref());
+            let kind = if rule == goldstone_core::expr::Rule::Srg {
+                "IMSRG"
+            } else {
+                "CC"
+            };
             ui.label(
                 RichText::new(crate::i18n::tr(&format!(
-                    "Diagram from LaTeX (group {})",
+                    "{kind} diagram from LaTeX (group {})",
                     grp.id
                 )))
                 .strong(),
@@ -300,10 +309,12 @@ impl GoldstoneApp {
             );
             if r.changed() {
                 redraw = Some(
-                    goldstone_core::expr::from_latex_editable(&self.code.latex).map(|d| {
-                        self.code.warnings = d.warnings;
-                        d.doc
-                    }),
+                    goldstone_core::expr::from_latex_editable_with(&self.code.latex, rule).map(
+                        |d| {
+                            self.code.warnings = d.warnings;
+                            d.doc
+                        },
+                    ),
                 );
             }
         } else {

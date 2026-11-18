@@ -71,8 +71,11 @@ Labels on lines are set in Fill & Stroke (*Label*, *Label side*,
 
 ## Diagrams from LaTeX
 
-Insert ▸ **Diagram from LaTeX…** (Ctrl+Shift+T) draws the diagram of a
-tensor expression; so does `goldstone latex "…" -o fig.pdf` in a terminal.
+Insert ▸ **CC Diagram from LaTeX…** (Ctrl+Shift+T) draws the diagram of a
+coupled-cluster expression, **IMSRG Diagram from LaTeX…** that of an IMSRG
+expression; in a terminal, `goldstone cc-latex "…" -o fig.pdf` and
+`goldstone srg-latex "…" -o fig.pdf`. The two differ only in how indices
+are read (below).
 
 The diagram is one group that remembers its equation. While it is
 selected, the **LaTeX** tab of the right panel shows the equation: edit
@@ -120,11 +123,21 @@ what to write.
   F)` gives two diagrams); `P(ab)` permutations are left out; `0 = …`
   takes the external lines from what is left open; each `\\` starts a new
   row of diagrams.
-- **IMSRG notation**: occupation factors decide the lines. `n_a` makes
-  line *a* a hole, `\bar n_a` or `(1-n_a)` a particle; factors such as
-  `(n_a - n_b)` are multiplied out, giving one diagram per particle–hole
-  assignment. With occupation factors, lines without one (and the external
-  lines) are general: drawn without arrows.
+- **CC rule**: a–g particles, h–n holes, other letters general. If
+  occupation factors appear, they decide as in the IMSRG rule.
+- **IMSRG rule** (IMSRG Diagram from LaTeX, `srg-latex`): every index is
+  a general orbital (no arrow), whatever its letter, unless an occupation
+  factor says otherwise: `n_a` hole, `\bar n_a` (also `\nn_a`) or `(1-n_a)`
+  particle. Factors such as `(n_a - n_b)` or `(n_a n_b \bar n_c + \bar n_a
+  \bar n_b n_c)` are multiplied out, giving one diagram per particle–hole
+  assignment. Indices may also be digits (`f_{12}`, `\Gamma_{1234}`).
+  Permutations `(1+P_{12})`, `(1-\hat P_{ij})` are left out; `\totd{f_{12}}{s}`
+  is d f₁₂/ds. Not accepted: commutators, normal-ordered operator strings,
+  operators in a denominator, Pandya-transformed indices (`\bar{4}`).
+  Example (Hergert et al.):
+  `\totd{f_{12}}{s} = \sum_{a}(1+P_{12})\eta_{1a}f_{a2} + \sum_{ab}(n_a-n_b)(\eta_{ab}\Gamma_{b1a2}-f_{ab}\eta_{b1a2})`.
+- A drawing remembers its rule, so the LaTeX tab redraws it with the same
+  one.
 - **Layout**: vertices joined by internal lines share a column, so those
   lines run straight up and down and a ladder keeps its width. External
   lines run to the top or bottom of the whole diagram and lean just enough
@@ -353,7 +366,8 @@ goldstone check figs/*.gold                # validate, typeset all labels
 goldstone extract fig.svg > fig.gold       # source embedded in an SVG
 goldstone fmt fig.gold                     # canonical form (drops comments)
 goldstone ls fig.gold                      # every object: id, kind, coordinates
-goldstone latex 'E2 = V_{ijab} T_{abij}' -o e2.pdf   # diagram of an expression
+goldstone cc-latex 'E2 = V_{ijab} T_{abij}' -o e2.pdf   # CC diagram of an expression
+goldstone srg-latex '\totd{E}{s} = \sum_{ab}(n_a-n_b)\eta_{ab}f_{ba}' -o e.pdf   # IMSRG
 goldstone paper.tex                        # draw every equation of a document
 goldstone tex paper.tex -f png --out-dir figs
 goldstone latex 'Z_abic = V_abef S_efic' > z.gold
@@ -462,7 +476,7 @@ dispatches keys from the same table, so this list is always accurate.
 | `Ctrl+Tab` | — | Next tab | Goldstone only |
 | `Ctrl+PageDown` | `⌘ PageDown` | Next tab | Goldstone only |
 | `Ctrl+PageUp` | `⌘ PageUp` | Previous tab | Goldstone only |
-| `Ctrl+Shift+T` | `⇧⌘T` | Diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij} | Goldstone only |
+| `Ctrl+Shift+T` | `⇧⌘T` | CC diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij} | Goldstone only |
 | `Ctrl+Q` | `⌘Q` | Quit | same |
 | `?` | `?` | Show keyboard shortcuts | Goldstone only |
 

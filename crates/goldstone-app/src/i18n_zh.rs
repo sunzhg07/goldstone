@@ -70,8 +70,14 @@ pub const ZH: &[(&str, &str)] = &[
     ("About Goldstone", "关于 Goldstone"),
     ("Check for Updates…", "检查更新…"),
     ("Check for Updates", "检查更新"),
-    ("Diagram from LaTeX…", "从 LaTeX 生成图…"),
-    ("Diagram from LaTeX", "从 LaTeX 生成图"),
+    ("CC Diagram from LaTeX…", "从 LaTeX 生成 CC 图…"),
+    ("CC Diagram from LaTeX", "从 LaTeX 生成 CC 图"),
+    ("IMSRG Diagram from LaTeX…", "从 LaTeX 生成 IMSRG 图…"),
+    ("IMSRG Diagram from LaTeX", "从 LaTeX 生成 IMSRG 图"),
+    (
+        "IMSRG: an index is a, a_1 or a digit (1). Every line is a general orbital (no arrow) unless an occupation factor says otherwise: n_a hole, \\bar n_a or (1 - n_a) particle; factors such as (n_a - n_b) give one diagram per particle–hole assignment. Permutations (1+P_{12}) are left out.",
+        "IMSRG：指标写作 a、a_1 或一位数字（1）。除非占据数因子另有规定，每条线都是一般轨道（无箭头）：n_a 为空穴，\\bar n_a 或 (1 - n_a) 为粒子；(n_a - n_b) 等因子按每种粒子–空穴分配各生成一个图。置换算符 (1+P_{12}) 不画出。",
+    ),
     ("Function Plot…", "函数图像…"),
     ("Function Plot", "函数图像"),
     ("Templates…", "模板…"),
@@ -616,8 +622,8 @@ pub const ZH: &[(&str, &str)] = &[
     ("Next tab", "下一个标签页"),
     ("Previous tab", "上一个标签页"),
     (
-        "Diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij}",
-        "从 LaTeX 生成图：绘制张量表达式，如 E2 = V_{ijab} T_{abij}",
+        "CC diagram from LaTeX: draw a tensor expression such as E2 = V_{ijab} T_{abij}",
+        "从 LaTeX 生成 CC 图：绘制张量表达式，如 E2 = V_{ijab} T_{abij}",
     ),
     ("Show keyboard shortcuts", "显示键盘快捷键"),
     // ---- keyboard reference: mouse -------------------------------------------------

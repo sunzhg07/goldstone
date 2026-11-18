@@ -381,6 +381,7 @@ pub fn group_everything<'a>(doc: &'a mut Document, id: &str) -> &'a mut crate::m
         id,
         members,
         latex: None,
+        latex_rule: None,
         plot: None,
     }];
     &mut doc.groups[0]

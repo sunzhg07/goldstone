@@ -445,7 +445,8 @@ impl GoldstoneApp {
                 }
             });
             ui.menu_button(t("Insert"), |ui| {
-                item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
+                item(ui, None, "CC Diagram from LaTeX…", Action::FromLatex);
+                item(ui, None, "IMSRG Diagram from LaTeX…", Action::FromLatexSrg);
                 item(ui, None, "Function Plot…", Action::FunctionPlot);
                 item(ui, None, "Templates…", Action::Templates);
             });
@@ -2178,7 +2179,8 @@ impl GoldstoneApp {
         }
         let mut open = true;
         let mut action: Option<bool> = None;
-        egui::Window::new(t("Diagram from LaTeX"))
+        let srg = self.latex.rule == goldstone_core::expr::Rule::Srg;
+        egui::Window::new(t(if srg { "IMSRG Diagram from LaTeX" } else { "CC Diagram from LaTeX" }))
             .open(&mut open)
             .default_width(520.0)
             .show(ctx, |ui| {
@@ -2192,7 +2194,7 @@ impl GoldstoneApp {
                 if self.latex.for_text.as_deref() != Some(self.latex.text.as_str()) {
                     self.latex.for_text = Some(self.latex.text.clone());
                     let mut warnings = Vec::new();
-                    self.latex.status = goldstone_core::expr::parse(&self.latex.text).and_then(|eq| {
+                    self.latex.status = goldstone_core::expr::parse_with(&self.latex.text, self.latex.rule).and_then(|eq| {
                         let drawn = goldstone_core::expr::diagram(&eq)?;
                         warnings = drawn.warnings;
                         let ops: usize = eq.terms.iter().map(|t| t.tensors.len()).sum();
@@ -2237,12 +2239,20 @@ impl GoldstoneApp {
                     action = Some(false);
                 }
                 ui.add_space(4.0);
-                egui::CollapsingHeader::new("Conventions").default_open(false).show(ui, |ui| {
+                egui::CollapsingHeader::new(t("Conventions")).default_open(false).show(ui, |ui| {
                     ui.label(t("An operator is X^{label}_{pqrs} = ⟨pq|X|rs⟩: the first half of the indices are outgoing (bra), the second incoming (ket); the optional superscript is part of the name."));
-                    ui.label(t("An index is a or a_1 (nothing else). a–g are particles (arrow up), h–n holes (arrow down), numbered or not; other letters are general. An index used twice is an internal line; one used once is external and must stand on the left."));
+                    if srg {
+                        ui.label(t("IMSRG: an index is a, a_1 or a digit (1). Every line is a general orbital (no arrow) unless an occupation factor says otherwise: n_a hole, \\bar n_a or (1 - n_a) particle; factors such as (n_a - n_b) give one diagram per particle–hole assignment. Permutations (1+P_{12}) are left out."));
+                    } else {
+                        ui.label(t("An index is a or a_1 (nothing else). a–g are particles (arrow up), h–n holes (arrow down), numbered or not; other letters are general. An index used twice is an internal line; one used once is external and must stand on the left."));
+                    }
                     ui.label(t("V W v w g H F f U \\Gamma are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar)."));
                     ui.label(t("Terms: + and -; prefactors such as \\frac{1}{4} are kept; \\sum, *, \\cdot are ignored."));
-                    ui.monospace("E2 = \\sum_{abij} V_{ijab} T_{abij}\nZ_{abic} = V_{abef} S_{efic}\nZ_{abij} = \\frac{1}{2} V_{abef} T_{efij}");
+                    if srg {
+                        ui.monospace("\\frac{dE}{ds} = \\sum_{ab} (n_a - n_b) \\eta_{ab} f_{ba}\n\\frac{df_{12}}{ds} = \\sum_{a} (1+P_{12}) \\eta_{1a} f_{a2}\nZ_{12} = \\frac{1}{2} \\sum_{abc} (n_a n_b \\bar n_c + \\bar n_a \\bar n_b n_c) \\eta_{c1ab} \\Gamma_{abc2}");
+                    } else {
+                        ui.monospace("E2 = \\sum_{abij} V_{ijab} T_{abij}\nZ_{abic} = V_{abef} S_{efic}\nZ_{abij} = \\frac{1}{2} V_{abef} T_{efij}");
+                    }
                 });
             });
         if let Some(replace) = action {

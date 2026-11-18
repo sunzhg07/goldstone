@@ -439,6 +439,9 @@ pub struct Group {
     /// The LaTeX equation this group was drawn from (edit it to redraw).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latex: Option<String>,
+    /// The rule the equation was read with: `"srg"` (IMSRG); none: CC.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latex_rule: Option<String>,
     /// The function plot this group was drawn from (edit it to redraw).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plot: Option<PlotSource>,

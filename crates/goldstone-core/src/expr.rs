@@ -38,6 +38,35 @@ const DY: f64 = 60.0; // between levels (operators above one another)
 const EXT: f64 = 34.0; // length of external lines
 const TERM_GAP: f64 = 16.0; // between terms (besides room for labels)
 
+/// How indices are read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Rule {
+    /// Coupled cluster: a–g particles, h–n holes, other letters general.
+    #[default]
+    Cc,
+    /// IMSRG: every index is a general orbital unless an occupation factor
+    /// (`n_a` hole, `\bar n_a` particle) says otherwise; single digits are
+    /// orbitals too (`f_{12}`, `\Gamma_{1234}`).
+    Srg,
+}
+
+impl Rule {
+    /// Name as stored in a `.gold` file (`latex_rule`); CC has none.
+    pub fn stored(self) -> Option<&'static str> {
+        match self {
+            Rule::Cc => None,
+            Rule::Srg => Some("srg"),
+        }
+    }
+
+    pub fn from_stored(s: Option<&str>) -> Rule {
+        match s {
+            Some("srg") => Rule::Srg,
+            _ => Rule::Cc,
+        }
+    }
+}
+
 const INTERACTIONS: &[&str] = &["V", "W", "v", "w", "g", "H", "F", "f", "U", "u", "\\Gamma"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,6 +140,8 @@ pub struct Equation {
 struct P<'a> {
     s: &'a [u8],
     i: usize,
+    /// IMSRG rule: digits are orbitals.
+    srg: bool,
     /// Counts top-level products, to keep the pieces of one term together
     /// when occupation factors are multiplied out.
     origin: usize,
@@ -235,11 +266,20 @@ impl P<'_> {
 /// Splits the indices of a subscript: each is a letter (`a`) or a
 /// numbered letter (`a_1`, `a_{12}`); spaces do not matter. Anything else
 /// is an error.
-fn indices(s: &str) -> Result<Vec<String>, String> {
-    let hint = "an index is a letter (a) or a numbered letter (a_1, a_{12})";
+fn indices(s: &str, digits: bool) -> Result<Vec<String>, String> {
+    let hint = if digits {
+        "an index is a letter (a), a numbered letter (a_1, a_{12}) or a digit (1)"
+    } else {
+        "an index is a letter (a) or a numbered letter (a_1, a_{12})"
+    };
     let mut out: Vec<String> = Vec::new();
     let mut chars = s.chars().filter(|c| !c.is_whitespace()).peekable();
     while let Some(c) = chars.next() {
+        // IMSRG: a digit is an orbital of its own (`{1234}`).
+        if digits && c.is_ascii_digit() {
+            out.push(c.to_string());
+            continue;
+        }
         if !c.is_ascii_lowercase() {
             return Err(format!("unexpected {c:?} in the indices {{{s}}}: {hint}"));
         }
@@ -262,7 +302,7 @@ fn indices(s: &str) -> Result<Vec<String>, String> {
             };
         }
         if let Some(&n) = chars.peek()
-            && (n.is_ascii_digit() || n == '\'')
+            && ((n.is_ascii_digit() && !digits) || n == '\'')
         {
             return Err(format!("{ix}{n} in the indices {{{s}}}: {hint}"));
         }
@@ -363,7 +403,7 @@ fn parse_tensor(p: &mut P) -> Result<Tensor, String> {
             "{name} is not a vertex: an operator is written {name}_{{indices}}, e.g. {name}_{{ijab}}"
         ));
     };
-    let all = indices(&sub).map_err(|e| format!("{name}: {e}"))?;
+    let all = indices(&sub, p.srg).map_err(|e| format!("{name}: {e}"))?;
     if all.is_empty() || all.len() % 2 != 0 {
         return Err(format!(
             "{name}_{{{sub}}}: an operator needs an even number of indices, X_{{pq rs}} = <pq|X|rs>"
@@ -442,7 +482,7 @@ fn parse_occupation(p: &mut P) -> Result<Option<Vec<(String, bool)>>, String> {
     if p.peek() == Some(b'}') && !p.s[start..p.i].ends_with(b"}") {
         p.i += 1;
     }
-    let ix = indices(&g)?;
+    let ix = indices(&g, p.srg)?;
     Ok(Some(ix.into_iter().map(|i| (i, hole)).collect()))
 }
 
@@ -451,11 +491,11 @@ fn parse_occupation(p: &mut P) -> Result<Option<Vec<(String, bool)>>, String> {
 /// so that each index is a definite hole or particle; equal products are
 /// added and those that cancel dropped. `(n_a - n_b)` gives
 /// `n_a \bar n_b - \bar n_a n_b`, `(1 - n_a - n_b)` gives `\bar n_a \bar n_b - n_a n_b`.
-fn resolve_occupations(out: Vec<(Prod, usize)>) -> Vec<Term> {
+fn resolve_occupations(out: Vec<(Prod, usize)>, srg: bool) -> Vec<Term> {
     // IMSRG notation (general orbitals) only with occupation factors.
     // Otherwise the letters decide: a–g particles, h–n holes, other letters
     // (p, q, …) and digits general orbitals; an operator's name never does.
-    let general = out.iter().any(|(pr, _)| !pr.occ.is_empty());
+    let general = srg || out.iter().any(|(pr, _)| !pr.occ.is_empty());
     // Group the products of one written term with the same operators.
     let mut groups: Vec<(String, Vec<(Prod, usize)>)> = Vec::new();
     for (pr, row) in out {
@@ -961,8 +1001,37 @@ fn missing_backslash(src: &str) -> Option<&'static str> {
     None
 }
 
-/// Parses `lhs = rhs` (or just `rhs`).
+/// Parses `lhs = rhs` (or just `rhs`) with the CC rule.
 pub fn parse(src: &str) -> Result<Equation, String> {
+    parse_with(src, Rule::Cc)
+}
+
+/// `\totd{X}{s}` → `\frac{dX}{ds}`, `\nn_a` → `\bar{n}_a` (macros of
+/// IMSRG papers).
+fn expand_macros(src: &str) -> String {
+    let mut s = src
+        .replace("\\nn_", "\\bar{n}_")
+        .replace("\\nn{", "\\bar{n}{");
+    while let Some(k) = s.find("\\totd") {
+        let rest = &s[k + 5..];
+        let mut p = P {
+            s: rest.as_bytes(),
+            i: 0,
+            origin: 0,
+            srg: false,
+        };
+        let (Ok(a), Ok(b)) = (p.group(), p.group()) else {
+            break;
+        };
+        s = format!("{}\\frac{{d {a}}}{{d {b}}}{}", &s[..k], &rest[p.i..]);
+    }
+    s
+}
+
+/// Parses `lhs = rhs` (or just `rhs`) with the given rule.
+pub fn parse_with(src: &str, rule: Rule) -> Result<Equation, String> {
+    let srg = rule == Rule::Srg;
+    let src = expand_macros(src);
     let src = src.trim().trim_matches('$').trim();
     if let Some(w) = missing_backslash(src) {
         return Err(format!("`{w}` needs a backslash in LaTeX: write \\{w}"));
@@ -988,6 +1057,7 @@ pub fn parse(src: &str) -> Result<Equation, String> {
                 s: l.as_bytes(),
                 i: 0,
                 origin: 0,
+                srg,
             };
             // The indices of the subscript (E2, E^{(2)}, E_{\rm CC} and 0
             // have none: a subscript that is not indices is a label).
@@ -998,7 +1068,7 @@ pub fn parse(src: &str) -> Result<Equation, String> {
                     p.spaces();
                     if p.peek() == Some(b'{') {
                         let g = p.group()?;
-                        if let Ok(ix) = indices(&g) {
+                        if let Ok(ix) = indices(&g, srg) {
                             ext.extend(ix);
                         }
                     }
@@ -1022,11 +1092,12 @@ pub fn parse(src: &str) -> Result<Equation, String> {
         s: rhs.as_bytes(),
         i: 0,
         origin: 0,
+        srg,
     };
     let mut out = Vec::new();
     let mut row = 0;
     parse_sum(&mut p, None, &mut row, &mut out)?;
-    let terms = resolve_occupations(out);
+    let terms = resolve_occupations(out, srg);
     if terms.is_empty() {
         return Err("no operators on the right-hand side".into());
     }
@@ -1108,7 +1179,7 @@ fn orient(
         let looks_like_indices = term.tensors.iter().find_map(|t| {
             let (base, label) = t.name.split_once("^{")?;
             let label = label.strip_suffix('}')?;
-            indices(label).ok().map(|_| format!("{base}^{{{label}}}"))
+            indices(label, false).ok().map(|_| format!("{base}^{{{label}}}"))
         });
         match looks_like_indices {
             Some(n) => format!(
@@ -2314,6 +2385,7 @@ pub fn diagram(eq: &Equation) -> Result<Diagram, String> {
                 id: format!("d{}", n + 1),
                 members: ids,
                 latex: None,
+                latex_rule: None,
                 plot: None,
             });
         }
@@ -2354,16 +2426,28 @@ fn term_latex(t: &Term) -> String {
     parts.join(" ")
 }
 
-/// Parses and builds in one step.
+/// Parses and builds in one step (CC rule).
 pub fn from_latex(src: &str) -> Result<Diagram, String> {
-    diagram(&parse(src)?)
+    from_latex_with(src, Rule::Cc)
+}
+
+/// Parses and builds in one step with the given rule.
+pub fn from_latex_with(src: &str, rule: Rule) -> Result<Diagram, String> {
+    diagram(&parse_with(src, rule)?)
 }
 
 /// Like [`from_latex`], with everything in one group that remembers the
 /// equation, so the drawing can be redrawn after the equation is edited.
 pub fn from_latex_editable(src: &str) -> Result<Diagram, String> {
-    let mut d = from_latex(src)?;
-    crate::scene::group_everything(&mut d.doc, "eq").latex = Some(src.to_string());
+    from_latex_editable_with(src, Rule::Cc)
+}
+
+/// [`from_latex_editable`] with the given rule (stored in the group).
+pub fn from_latex_editable_with(src: &str, rule: Rule) -> Result<Diagram, String> {
+    let mut d = from_latex_with(src, rule)?;
+    let g = crate::scene::group_everything(&mut d.doc, "eq");
+    g.latex = Some(src.to_string());
+    g.latex_rule = rule.stored().map(str::to_string);
     Ok(d)
 }
 
@@ -2547,11 +2631,11 @@ mod tests {
     #[test]
     fn numbered_indices() {
         assert_eq!(
-            indices("a_1 a_2 h_1 h_{12}").unwrap(),
+            indices("a_1 a_2 h_1 h_{12}", false).unwrap(),
             vec!["a_1", "a_2", "h_1", "h_{12}"]
         );
-        assert_eq!(indices("a_{1}b_2").unwrap(), vec!["a_1", "b_2"]);
-        assert!(indices("_1").is_err());
+        assert_eq!(indices("a_{1}b_2", false).unwrap(), vec!["a_1", "b_2"]);
+        assert!(indices("_1", false).is_err());
         let src = r"Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}";
         let eq = parse(src).unwrap();
         assert_eq!(eq.external, vec!["a_1", "a_2", "h_1", "h_2"]);
@@ -2651,6 +2735,86 @@ mod tests {
         assert!(x("V2_1") < x("V2_2"));
         assert!(x("Z3_1") < x("Z3_2"));
         assert!(x("a_end") < x("b_end"));
+    }
+
+    /// Flow equations as written in IMSRG papers (Hergert et al. 2016,
+    /// arXiv:1512.06956; Heinz et al. 2021, arXiv:2102.11172; He et al.
+    /// 2024, arXiv:2405.19594), read with the IMSRG rule.
+    #[test]
+    fn imsrg_papers() {
+        let draws = |src: &str| -> usize {
+            let d = from_latex_with(src, Rule::Srg).unwrap_or_else(|e| panic!("{src}\n{e}"));
+            assert!(d.warnings.is_empty(), "{src}\n{:?}", d.warnings);
+            d.doc.groups.len().max(1)
+        };
+        // dE/ds: (n_a - n_b) gives two diagrams; the two-body term one.
+        assert_eq!(
+            draws(
+                r"\totd{E}{s}&= \sum_{ab}(n_a-n_b)\eta_{ab} f_{ba} + \frac{1}{2} \sum_{abcd}\eta_{abcd}\Gamma_{cdab} n_a n_b\bar{n}_c\bar{n}_d"
+            ),
+            3
+        );
+        // df_{12}/ds: digits are orbitals, permutations are left out.
+        assert!(
+            draws(
+                r"\totd{f_{12}}{s} &= \sum_{a}(1+P_{12})\eta_{1a}f_{a2} +\sum_{ab}(n_a-n_b)(\eta_{ab}\Gamma_{b1a2}-f_{ab}\eta_{b1a2}) + \frac{1}{2}\sum_{abc}(n_an_b\bar{n}_c+\bar{n}_a\bar{n}_bn_c) (1+P_{12})\eta_{c1ab}\Gamma_{abc2}"
+            ) >= 5
+        );
+        // dΓ_{1234}/ds.
+        assert!(
+            draws(
+                r"\totd{\Gamma_{1234}}{s}&= \sum_{a} (1-P_{12})(\eta_{1a}\Gamma_{a234}-f_{1a}\eta_{a234} ) -(1-P_{34})(\eta_{a3}\Gamma_{12a4}-f_{a3}\eta_{12a4} ) + \frac{1}{2}\sum_{ab}(1-n_a-n_b)(\eta_{12ab}\Gamma_{ab34}-\Gamma_{12ab}\eta_{ab34}) -\sum_{ab}(n_a-n_b) (1-P_{12})(1-P_{34})\eta_{b2a4}\Gamma_{a1b3}"
+            ) >= 6
+        );
+        // Commutator pieces with p, q (Heinz et al.).
+        assert_eq!(
+            draws(r"Z = \sum_{pq}(n_p \bar{n}_q - \bar{n}_p n_q) A_{pq} B_{qp}"),
+            2
+        );
+        // Factorized IMSRG(3) (He et al.): \left( … \right) times a factor.
+        assert_eq!(
+            draws(
+                r"f^{\rm I}_{ij} = \frac{1}{2} \sum_{abcde} \left( \bar{n}_a \bar{n}_b {n}_c {n}_d - {n}_a {n}_b \bar{n}_c \bar{n}_d \right) \Omega_{cdab}\Omega_{abce} \Gamma_{eidj}"
+            ),
+            2
+        );
+        // Written in the Hermitian-conjugate order (d outgoing twice): not
+        // accepted, the term is left out with a warning.
+        let d = from_latex_with(
+            r"f_{ij} = \sum_{abcde} n_c \Omega_{cdab}\Omega_{abce} \Gamma_{diej}",
+            Rule::Srg,
+        );
+        assert!(d.is_err() || !d.unwrap().warnings.is_empty());
+        // \nn is \bar n.
+        assert_eq!(
+            draws(
+                r"\totd{E}{s} = \frac{1}{2}\sum_{abcd}\eta_{abcd}\Gamma_{cdab}n_{a}n_{b}\nn_{c}\nn_{d}"
+            ),
+            1
+        );
+        // Without a factor every line is general, whatever its letter.
+        let d = from_latex_with(r"Z_{ai} = \eta_{ab} f_{bi}", Rule::Srg)
+            .unwrap()
+            .doc;
+        assert!(
+            d.edges
+                .iter()
+                .filter(|e| e.label.is_some())
+                .all(|e| e.class.as_deref() == Some("line")
+                    || e.class.as_deref() == Some("interaction")
+                    || e.class.as_deref() == Some("amplitude"))
+        );
+        // Digits stay rejected with the CC rule.
+        assert!(
+            from_latex(r"Z_{12} = f_{1a} t_{a2}")
+                .unwrap_err()
+                .contains("index")
+        );
+        // The rule is kept with the drawing.
+        let g = from_latex_editable_with(r"Z_{12} = \eta_{1a} f_{a2}", Rule::Srg)
+            .unwrap()
+            .doc;
+        assert_eq!(g.groups[0].latex_rule.as_deref(), Some("srg"));
     }
 
     #[test]

@@ -589,6 +589,7 @@ pub fn group(doc: &mut Document, sel: &Selection) -> Option<String> {
         id: id.clone(),
         members,
         latex: None,
+        latex_rule: None,
         plot: None,
     });
     Some(id)

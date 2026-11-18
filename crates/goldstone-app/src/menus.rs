@@ -413,7 +413,8 @@ impl GoldstoneApp {
             );
         });
         ui.separator();
-        m.item(ui, None, "Diagram from LaTeX…", Action::FromLatex);
+        m.item(ui, None, "CC Diagram from LaTeX…", Action::FromLatex);
+        m.item(ui, None, "IMSRG Diagram from LaTeX…", Action::FromLatexSrg);
         m.item(ui, None, "Function Plot…", Action::FunctionPlot);
         if any {
             m.item(ui, None, "Add Selection to Templates…", Action::AddTemplate);

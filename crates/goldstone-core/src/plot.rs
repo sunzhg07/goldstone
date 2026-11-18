@@ -1246,6 +1246,7 @@ pub fn plot(spec: &Spec) -> Result<Plot, String> {
         id: "plot".into(),
         members,
         latex: None,
+        latex_rule: None,
         plot: None,
     });
     Ok(Plot { doc, warnings })
