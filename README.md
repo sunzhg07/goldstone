@@ -74,7 +74,7 @@ goldstone latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_
 | Notation | Meaning |
 |---|---|
 | `X_{pqrs}` | ⟨pq\|X\|rs⟩: first half outgoing (bra), second half incoming (ket); `X^{pq}_{rs}` the same |
-| `a`–`h` / `i`–`n` | particles (arrow up) / holes (arrow down) in CC notation |
+| `a`–`g` / `h`–`n` | particles (arrow up) / holes (arrow down) in CC notation; numbered when more are needed: `a_1 a_2 b_1 …` / `h_1 h_2 i_1 …` |
 | `V W v w g H F f U` | interactions: dashed line, one-body `---X` |
 | other names (`t`, `T`, `\tau`, `S`, …) | amplitudes: thick bar |
 | `\hat J`, `(-1)^{…}`, 6j symbols, `\delta`, `^{J}` | not part of the diagram, left out |

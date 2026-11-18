@@ -90,8 +90,12 @@ Z_{abij} = \frac{1}{2} V_{abef} T_{efij} + \frac{1}{4} V_{klef} T_{efij} T_{abkl
   (bra), the second half incoming (ket); `X^{pq}_{rs}` means the same.
   Write indices as LaTeX: `V_{ijab}` (or `V_ijab`). Something that is not
   LaTeX, such as `T{aj}`, is an error that says what to write instead.
-- **a–h are particles** (arrow up), **i–n holes** (arrow down); digits and
-  primes are allowed (`a1`, `i'`).
+- **a–g are particles** (arrow up), **h–n holes** (arrow down). When
+  there are not enough letters, number them: `a_1 a_2 … b_1 …` are
+  particles, `h_1 h_2 … i_1 …` holes (`a_{12}` for two digits), e.g.
+  `Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}`.
+  Digits and primes are allowed too (`a1`, `i'`). Other letters (`p q r s`)
+  are general orbitals.
 - Each vertex of an operator joins one outgoing and one incoming index
   (p with r, q with s). An index used twice is an internal line, from where
   it is outgoing to where it is incoming; that decides which operator is

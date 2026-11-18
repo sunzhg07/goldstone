@@ -9,7 +9,7 @@
 //!
 //! - `X_{pqrs}` is ⟨pq|X|rs⟩: the first half of the indices are *outgoing*
 //!   (bra), the second half *incoming* (ket). `X^{pq}_{rs}` means the same.
-//! - Indices `a`–`h` are particles (arrow up), `i`–`n` holes (arrow down);
+//! - Indices `a`–`g` are particles (arrow up), `h`–`n` holes (arrow down), also numbered (`a_1`, `h_{12}`);
 //!   an index may carry digits or primes (`a1`, `i'`).
 //! - Every vertex of an operator joins one outgoing and one incoming index
 //!   (`p` with `r`, `q` with `s`). A one-body operator has one vertex, a
@@ -46,7 +46,7 @@ pub enum Kind {
 
 /// The kind of a line. With occupation factors (IMSRG notation) every
 /// index is a general orbital unless `n_a` (hole) or `\bar n_a` (particle)
-/// says otherwise; otherwise a–h are particles and i–n holes, and other
+/// says otherwise; otherwise a–g are particles and h–n holes (also as `a_1`, `h_2`), and other
 /// letters (p, q, …) or digits are general.
 fn kind_in(term: &Term, index: &str) -> Kind {
     if let Some(k) = term.classes.get(index) {
@@ -56,8 +56,8 @@ fn kind_in(term: &Term, index: &str) -> Kind {
         return Kind::General;
     }
     match index.chars().next() {
-        Some('a'..='h') => Kind::Particle,
-        Some('i'..='n') => Kind::Hole,
+        Some('a'..='g') => Kind::Particle,
+        Some('h'..='n') => Kind::Hole,
         _ => Kind::General,
     }
 }
@@ -221,8 +221,8 @@ impl P<'_> {
     }
 }
 
-/// Splits `abij` / `a1 b' i j` into indices: a letter followed by digits
-/// or primes.
+/// Splits `abij` / `a1 b' i j` / `a_1 a_2 h_1 h_{12}` into indices: a
+/// letter followed by digits, primes or a subscript.
 fn indices(s: &str) -> Result<Vec<String>, String> {
     let mut out: Vec<String> = Vec::new();
     let compact: String = s
@@ -239,7 +239,41 @@ fn indices(s: &str) -> Result<Vec<String>, String> {
     {
         return Ok(compact.chars().map(|c| c.to_string()).collect());
     }
-    for c in s.chars() {
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        // A numbered index: `a_1`, `h_{12}` (one index, drawn as $a_1$).
+        if c == '_' {
+            let Some(last) = out.last_mut() else {
+                return Err(format!("unexpected '_' in the indices {s:?}"));
+            };
+            let sub: String = if chars.peek() == Some(&'{') {
+                chars.next();
+                let inner: String = chars.by_ref().take_while(|&c| c != '}').collect();
+                let inner = inner.trim().to_string();
+                if inner.is_empty() || !inner.chars().all(|c| c.is_ascii_alphanumeric()) {
+                    return Err(format!(
+                        "write a numbered index as a_1 or a_{{12}} in {s:?}"
+                    ));
+                }
+                if inner.len() == 1 {
+                    inner
+                } else {
+                    format!("{{{inner}}}")
+                }
+            } else {
+                match chars.next() {
+                    Some(d) if d.is_ascii_alphanumeric() => d.to_string(),
+                    _ => {
+                        return Err(format!(
+                            "write a numbered index as a_1 or a_{{12}} in {s:?}"
+                        ));
+                    }
+                }
+            };
+            last.push('_');
+            last.push_str(&sub);
+            continue;
+        }
         if c.is_ascii_digit()
             && digit_orbitals
             && out
@@ -514,7 +548,7 @@ fn parse_occupation(p: &mut P) -> Result<Option<Vec<(String, bool)>>, String> {
 fn resolve_occupations(out: Vec<(Prod, usize)>) -> Vec<Term> {
     // IMSRG notation: occupation factors, or the Greek operators of IMSRG
     // papers (η, Γ, Ω, χ) with orbitals that are not CC letters (p, q, 1,
-    // 2, …); then indices are general orbitals. With only a–h / i–n, a
+    // 2, …); then indices are general orbitals. With only a–g / h–n, a
     // Greek name is just a name: \Gamma_{ijab} \Gamma_{abij} is MBPT(2).
     let imsrg_name = |t: &Tensor| {
         let b = base_name(&t.name);
@@ -2441,6 +2475,33 @@ mod tests {
             from_latex("E = V_{mnef} T_{ijab}").is_err(),
             "nothing valid is an error"
         );
+    }
+
+    #[test]
+    fn numbered_indices() {
+        assert_eq!(
+            indices("a_1 a_2 h_1 h_{12}").unwrap(),
+            vec!["a_1", "a_2", "h_1", "h_{12}"]
+        );
+        assert_eq!(indices("a_{1}b_2").unwrap(), vec!["a_1", "b_2"]);
+        assert!(indices("_1").is_err());
+        let eq = parse(
+            r"Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}",
+        )
+        .unwrap();
+        assert_eq!(eq.external, vec!["a_1", "a_2", "h_1", "h_2"]);
+        let t = &eq.terms[0];
+        assert_eq!(kind_in(t, "b_1"), Kind::Particle);
+        assert_eq!(kind_in(t, "h_1"), Kind::Hole);
+        assert_eq!(kind_in(t, "g"), Kind::Particle);
+        assert_eq!(kind_in(t, "h"), Kind::Hole);
+        let d = from_latex(
+            r"Z_{a_1 a_2 h_1 h_2} = \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2 h_1 h_2}",
+        )
+        .unwrap()
+        .doc;
+        assert!(d.edges.iter().any(|e| e.label.as_deref() == Some("$b_1$")));
+        crate::scene::build(&d).expect("valid ids");
     }
 
     #[test]

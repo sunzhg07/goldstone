@@ -351,8 +351,8 @@ pub const ZH: &[(&str, &str)] = &[
         "X_{pqrs} = ⟨pq|X|rs⟩：前一半指标为出射（bra），后一半为入射（ket）。X^{pq}_{rs} 含义相同。",
     ),
     (
-        "a–h are particles (arrow up), i–n holes (arrow down). An index used twice is an internal line; one used once is external and must stand on the left.",
-        "a–h 为粒子（箭头向上），i–n 为空穴（箭头向下）。出现两次的指标为内线；只出现一次的为外线，且须出现在左边。",
+        "a–g are particles (arrow up), h–n holes (arrow down); for more, number them: a_1, a_2, b_1, …, h_1, h_2, i_1, …. An index used twice is an internal line; one used once is external and must stand on the left.",
+        "a–g 为粒子（箭头向上），h–n 为空穴（箭头向下）；指标不够时可加编号：a_1、a_2、b_1、…、h_1、h_2、i_1、…。出现两次的指标为内线；只出现一次的为外线，且须出现在左边。",
     ),
     (
         "V W v w g H F f U are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar).",

@@ -2239,7 +2239,7 @@ impl GoldstoneApp {
                 ui.add_space(4.0);
                 egui::CollapsingHeader::new("Conventions").default_open(false).show(ui, |ui| {
                     ui.label(t("X_{pqrs} = ⟨pq|X|rs⟩: the first half of the indices are outgoing (bra), the second incoming (ket). X^{pq}_{rs} means the same."));
-                    ui.label(t("a–h are particles (arrow up), i–n holes (arrow down). An index used twice is an internal line; one used once is external and must stand on the left."));
+                    ui.label(t("a–g are particles (arrow up), h–n holes (arrow down); for more, number them: a_1, a_2, b_1, …, h_1, h_2, i_1, …. An index used twice is an internal line; one used once is external and must stand on the left."));
                     ui.label(t("V W v w g H F f U are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar)."));
                     ui.label(t("Terms: + and -; prefactors such as \\frac{1}{4} are kept; \\sum, *, \\cdot are ignored."));
                     ui.monospace("E2 = \\sum_{abij} V_{ijab} T_{abij}\nZ_{abic} = V_{abef} S_{efic}\nZ_{abij} = \\frac{1}{2} V_{abef} T_{efij}");

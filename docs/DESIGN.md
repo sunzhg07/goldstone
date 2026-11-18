@@ -619,7 +619,7 @@ Align & Distribute.
   Stroke shows an arc's bend, height (sagitta) and radius (+ *deep*),
   kept in sync; the file stores only `bend`.
 - **Diagrams from LaTeX** (`goldstone_core::expr`): parses a tensor
-  expression (⟨pq|X|rs⟩ index order, a–h particles, i–n holes), checks the
+  expression (⟨pq|X|rs⟩ index order, a–g particles, h–n holes, numbered as a_1, h_2, …), checks the
   contractions, orders operators vertically by arrow direction (particles
   up, holes down), aligns vertices over their partners (trying vertex
   permutations), spreads parallel lines into arcs and leans external lines
