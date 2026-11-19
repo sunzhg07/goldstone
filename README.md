@@ -8,6 +8,8 @@ diagrams as plain-text `.gold` files in git.
 Renders to **PDF, SVG, PNG and TikZ**. Labels are typeset in Computer
 Modern without a TeX installation.
 
+![Goldstone demo: IMSRG and CC diagrams from LaTeX, hand editing, plots, export](docs/images/demo.gif)
+
 **Download:** [Releases](https://github.com/sunzhg07/goldstone/releases) —
 macOS `.dmg`, Windows `.zip`, Linux `.AppImage` / `.deb` / `.tar.gz`.
 

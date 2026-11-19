@@ -16,6 +16,8 @@ toml = "1"
 [dev-dependencies]
 goldstone-export = { version = "0.3.1", path = "../goldstone-export" }
 image = { version = "0.25", default-features = false, features = ["png"] }
+gif = "0.14"
+color_quant = "1.1"
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot", "eframe"] }
 
 # Screen color picker: the system's own picker where there is one.
