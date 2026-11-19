@@ -537,6 +537,24 @@ fn demo_gif() {
     d.wait(2200);
     d.shot("srg-edited");
 
+    // 3b. IMSRG, Hugenholtz style.
+    d.caption("IMSRG Hugenholtz: every two- and three-body operator is one dot");
+    d.key(Modifiers::COMMAND, Key::N, "⌘N  New tab");
+    d.click_label("Insert");
+    d.wait(200);
+    d.click_prefix("IMSRG Hugenholtz Diagram from LaTeX…");
+    d.wait(400);
+    d.focus_text();
+    d.key(Modifiers::COMMAND, Key::A, "⌘A");
+    d.type_text(r"E_3 = \frac{1}{8} \sum \Gamma_{ijab} \Gamma_{abcd} \Gamma_{cdij} n_i n_j \bar n_a \bar n_b \bar n_c \bar n_d");
+    d.wait(800);
+    d.caption("Dots in a column; the lines are spread so they never cross");
+    d.click_button("Insert");
+    d.h.run_steps(2);
+    d.key(Modifiers::NONE, Key::Num4, "4  Zoom Drawing");
+    d.wait(2600);
+    d.shot("hugenholtz");
+
     // 4. CC: a template.
     d.caption("Coupled cluster: start from a template…");
     d.key(Modifiers::COMMAND, Key::N, "⌘N  New tab");
