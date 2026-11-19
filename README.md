@@ -70,12 +70,27 @@ goldstone srg-latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_
 
 ![IMSRG two-body term](docs/images/imsrg2.svg)
 
+### IMSRG, Hugenholtz style
+
+`goldstone srg-hug-latex` (Insert ▸ IMSRG Hugenholtz Diagram from LaTeX)
+reads the equation exactly as `srg-latex`, but draws every two- and
+three-body operator as one dot; one-body operators are drawn as before.
+Dots stand in a column, and the lines between them are spread so that
+they neither cross nor touch the labels.
+
+```sh
+goldstone srg-hug-latex 'E_3 = \frac{1}{8} \sum \Gamma_{ijab} \Gamma_{abcd} \Gamma_{cdij} n_i n_j \bar n_a \bar n_b \bar n_c \bar n_d'
+```
+
+![Hugenholtz diagram](docs/images/hugenholtz.svg)
+
 ### The two conventions: CC and IMSRG
 
 Goldstone reads LaTeX with one of two rules: **CC** (`goldstone cc-latex`,
 Insert ▸ CC Diagram from LaTeX) and **IMSRG** (`goldstone srg-latex`,
-Insert ▸ IMSRG Diagram from LaTeX). The syntax is the same and strict;
-only the meaning of the index letters differs.
+Insert ▸ IMSRG Diagram from LaTeX; `srg-hug-latex` draws it Hugenholtz
+style). The syntax is the same and strict; only the meaning of the index
+letters differs.
 
 **Shared syntax**
 
@@ -158,7 +173,7 @@ or `goldstone templates -o sheet.pdf` for an overview.
 ### A whole document
 
 ```sh
-goldstone paper.tex            # or: goldstone tex paper.tex -f png --out-dir figs (--srg: IMSRG rule)
+goldstone paper.tex            # or: goldstone tex paper.tex -f png --out-dir figs (--srg: IMSRG rule, --hugenholtz: IMSRG Hugenholtz)
 ```
 
 finds every equation (`equation`, `align`, `eqnarray`, `\[ \]`, …) and
@@ -242,6 +257,7 @@ goldstone render figs/*.gold -f tikz --out-dir paper/figs
 goldstone render fig.gold -o slide.png --background white --dpi 600
 goldstone cc-latex '…' -o eq.pdf             # CC diagram of an equation
 goldstone srg-latex '…' -o eq.pdf            # IMSRG diagram of an equation
+goldstone srg-hug-latex '…' -o eq.pdf        # the same, Hugenholtz style
 goldstone plot 'sin(x)' --x=-pi:pi -o f.pdf  # function plot
 goldstone templates -o sheet.pdf             # all built-in templates
 goldstone paper.tex                          # every equation of a document

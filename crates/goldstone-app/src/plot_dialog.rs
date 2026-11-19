@@ -271,6 +271,12 @@ impl GoldstoneApp {
             if ui.button(t("IMSRG Diagram from LaTeX…")).clicked() {
                 self.do_action(Action::FromLatexSrg, &ctx);
             }
+            if ui
+                .button(t("IMSRG Hugenholtz Diagram from LaTeX…"))
+                .clicked()
+            {
+                self.do_action(Action::FromLatexSrgHug, &ctx);
+            }
             if ui.button(t("Function Plot…")).clicked() {
                 self.do_action(Action::FunctionPlot, &ctx);
             }
@@ -289,10 +295,10 @@ impl GoldstoneApp {
         let mut redraw: Option<Result<Document, String>> = None;
         if grp.latex.is_some() {
             let rule = goldstone_core::expr::Rule::from_stored(grp.latex_rule.as_deref());
-            let kind = if rule == goldstone_core::expr::Rule::Srg {
-                "IMSRG"
-            } else {
-                "CC"
+            let kind = match rule {
+                goldstone_core::expr::Rule::Cc => "CC",
+                goldstone_core::expr::Rule::Srg => "IMSRG",
+                goldstone_core::expr::Rule::SrgHug => "IMSRG Hugenholtz",
             };
             ui.label(
                 RichText::new(crate::i18n::tr(&format!(

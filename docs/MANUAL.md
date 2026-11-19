@@ -75,7 +75,8 @@ Insert ▸ **CC Diagram from LaTeX…** (Ctrl+Shift+T) draws the diagram of a
 coupled-cluster expression, **IMSRG Diagram from LaTeX…** that of an IMSRG
 expression; in a terminal, `goldstone cc-latex "…" -o fig.pdf` and
 `goldstone srg-latex "…" -o fig.pdf`. The two differ only in how indices
-are read (below).
+are read (below). **IMSRG Hugenholtz Diagram from LaTeX…**
+(`goldstone srg-hug-latex`) reads as IMSRG and draws Hugenholtz diagrams.
 
 The diagram is one group that remembers its equation. While it is
 selected, the **LaTeX** tab of the right panel shows the equation: edit
@@ -136,6 +137,14 @@ what to write.
   operators in a denominator, Pandya-transformed indices (`\bar{4}`).
   Example (Hergert et al.):
   `\totd{f_{12}}{s} = \sum_{a}(1+P_{12})\eta_{1a}f_{a2} + \sum_{ab}(n_a-n_b)(\eta_{ab}\Gamma_{b1a2}-f_{ab}\eta_{b1a2})`.
+- **IMSRG Hugenholtz** (IMSRG Hugenholtz Diagram from LaTeX,
+  `srg-hug-latex`, `tex --hugenholtz`): indices as in the IMSRG rule; every
+  two- and three-body operator is one dot (labelled with its name) where
+  all its lines meet; one-body operators are drawn as in the IMSRG rule.
+  The dots stand in a column (operators of one level side by side); the
+  lines between two dots are spread evenly, lines that pass another dot
+  go around it, and the drawing is stretched when many lines join two
+  dots. Each dot label goes where it touches no line.
 - A drawing remembers its rule, so the LaTeX tab redraws it with the same
   one.
 - **Layout**: vertices joined by internal lines share a column, so those
@@ -368,6 +377,7 @@ goldstone fmt fig.gold                     # canonical form (drops comments)
 goldstone ls fig.gold                      # every object: id, kind, coordinates
 goldstone cc-latex 'E2 = V_{ijab} T_{abij}' -o e2.pdf   # CC diagram of an expression
 goldstone srg-latex '\totd{E}{s} = \sum_{ab}(n_a-n_b)\eta_{ab}f_{ba}' -o e.pdf   # IMSRG
+goldstone srg-hug-latex '\frac{dE}{ds} = \frac{1}{4}\sum \eta_{abcd}\Gamma_{cdab} n_a n_b \bar n_c \bar n_d' -o h.pdf   # Hugenholtz
 goldstone paper.tex                        # draw every equation of a document
 goldstone tex paper.tex -f png --out-dir figs
 goldstone latex 'Z_abic = V_abef S_efic' > z.gold

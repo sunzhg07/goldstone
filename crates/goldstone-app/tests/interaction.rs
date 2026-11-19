@@ -351,6 +351,27 @@ fn diagram_from_latex_dialog() {
 }
 
 #[test]
+fn hugenholtz_diagram_from_the_insert_menu() {
+    use egui_kittest::kittest::Queryable;
+    let mut h = harness();
+    h.get_by_label("Insert").click();
+    h.run_steps(2);
+    h.get_by(|n| {
+        n.label()
+            .is_some_and(|l| l.starts_with("IMSRG Hugenholtz Diagram from LaTeX…"))
+    })
+    .click();
+    h.run_steps(3);
+    // The default expression: the IMSRG(2) two-body energy term.
+    h.get_all_by_label("Insert").last().unwrap().click();
+    h.run_steps(3);
+    let d = h.state().document();
+    assert_eq!(d.vertices.len(), 2, "one dot per operator");
+    assert_eq!(d.edges.len(), 4);
+    assert_eq!(d.groups[0].latex_rule.as_deref(), Some("srg-hug"));
+}
+
+#[test]
 fn tabs_keep_their_own_diagram() {
     let mut h = harness();
     h.key_press(Key::B);

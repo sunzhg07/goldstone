@@ -324,14 +324,14 @@ impl Page {
     }
 }
 
-/// CC / IMSRG Diagram from LaTeX dialog.
+/// CC / IMSRG / IMSRG Hugenholtz Diagram from LaTeX dialog.
 pub struct LatexDialog {
     pub open: bool,
     /// The rule the equation is read with.
     pub rule: goldstone_core::expr::Rule,
     pub text: String,
-    /// The text of the other rule's dialog, kept while this one is open.
-    pub(crate) other_text: String,
+    /// The texts of the other rules' dialogs, kept while this one is open.
+    pub(crate) other_texts: std::collections::HashMap<goldstone_core::expr::Rule, String>,
     /// Result of parsing `text`: a summary, or the error.
     pub status: Result<String, String>,
     /// Terms left out because they are not valid contractions.
@@ -345,7 +345,19 @@ impl Default for LatexDialog {
             open: false,
             rule: goldstone_core::expr::Rule::Cc,
             text: r"E2 = \sum_{abij} V_{ijab} T_{abij}".into(),
-            other_text: r"\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba} + \frac{1}{2} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d".into(),
+            other_texts: [
+                (
+                    goldstone_core::expr::Rule::Srg,
+                    r"\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba} + \frac{1}{2} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d",
+                ),
+                (
+                    goldstone_core::expr::Rule::SrgHug,
+                    r"\frac{dE}{ds} = \frac{1}{2} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d",
+                ),
+            ]
+            .into_iter()
+            .map(|(r, s)| (r, s.to_string()))
+            .collect(),
             status: Ok(String::new()),
             warnings: Vec::new(),
             for_text: None,
@@ -1352,6 +1364,7 @@ impl GoldstoneApp {
             Action::Quit => self.request(Pending::Quit, ctx),
             Action::FromLatex => self.open_latex(goldstone_core::expr::Rule::Cc),
             Action::FromLatexSrg => self.open_latex(goldstone_core::expr::Rule::Srg),
+            Action::FromLatexSrgHug => self.open_latex(goldstone_core::expr::Rule::SrgHug),
             Action::FunctionPlot => self.plot.open = true,
             Action::Templates => self.templates.browse = true,
             Action::AddTemplate => self.start_add_template(),
@@ -1540,11 +1553,13 @@ impl GoldstoneApp {
             .to_doc(self.canvas_rect, self.canvas_rect.center())
     }
 
-    /// Opens the Diagram from LaTeX dialog for `rule` (CC or IMSRG); each
-    /// keeps its own text.
+    /// Opens the Diagram from LaTeX dialog for `rule`; each rule keeps its
+    /// own text.
     pub(crate) fn open_latex(&mut self, rule: goldstone_core::expr::Rule) {
         if self.latex.rule != rule {
-            std::mem::swap(&mut self.latex.text, &mut self.latex.other_text);
+            let text = self.latex.other_texts.remove(&rule).unwrap_or_default();
+            let old = std::mem::replace(&mut self.latex.text, text);
+            self.latex.other_texts.insert(self.latex.rule, old);
             self.latex.rule = rule;
             self.latex.for_text = None;
         }

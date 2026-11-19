@@ -16,6 +16,7 @@ Z_{a_1 a_2 h_1 h_2} &= \frac{1}{2} \sum_{b_1 b_2} V_{a_1 a_2 b_1 b_2} T_{b_1 b_2
 \end{aligned}' -o $O/ccsd.svg $BG
 $G srg-latex '\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba} + \frac{1}{4} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d' -o $O/imsrg.svg $BG
 $G srg-latex '\chi_{ijkl} = \sum_{ab} \left( \bar{n}_a \bar{n}_b n_l + n_a n_b \bar{n}_l \right) \Gamma_{ijab} \Omega_{abkl}' -o $O/imsrg2.svg $BG
+$G srg-hug-latex 'E_3 = \frac{1}{8} \sum \Gamma_{ijab} \Gamma_{abcd} \Gamma_{cdij} n_i n_j \bar n_a \bar n_b \bar n_c \bar n_d' -o $O/hugenholtz.svg $BG
 $G plot 'sin(x); cos(x); \frac{1}{1+x^2}' --x=-2pi:2pi -o $O/plot.svg $BG
 $G render examples/mbpt2.gold -o $O/handmade.svg $BG
 $G render examples/gallery.gold -o $O/gallery.svg $BG

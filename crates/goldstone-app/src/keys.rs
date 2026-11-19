@@ -136,6 +136,7 @@ pub enum Action {
     ShowCode,
     FromLatex,
     FromLatexSrg,
+    FromLatexSrgHug,
     FunctionPlot,
     Templates,
     AddTemplate,

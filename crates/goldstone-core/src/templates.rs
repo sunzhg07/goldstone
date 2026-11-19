@@ -729,6 +729,12 @@ fn equation_shapes() -> Vec<(&'static str, Document)> {
 /// the LaTeX tab).
 /// IMSRG templates (read with the IMSRG rule); the others are CC.
 const SRG_TEMPLATES: &[&str] = &["IMSRG(2) energy flow", "IMSRG one-body flow"];
+/// IMSRG templates drawn Hugenholtz style.
+const SRG_HUG_TEMPLATES: &[&str] = &[
+    "IMSRG(2) energy flow (Hugenholtz)",
+    "IMSRG two-body flow, ladder (Hugenholtz)",
+    "IMSRG two-body flow, ring (Hugenholtz)",
+];
 
 const MANY_BODY: &[(&str, &str)] = &[
     (
@@ -781,6 +787,18 @@ const MANY_BODY: &[(&str, &str)] = &[
     (
         "IMSRG one-body flow",
         r"\frac{df_{12}}{ds} = \sum_{a} \eta_{1a} f_{a2}",
+    ),
+    (
+        "IMSRG(2) energy flow (Hugenholtz)",
+        r"\frac{dE}{ds} = \frac{1}{4} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar{n}_c \bar{n}_d",
+    ),
+    (
+        "IMSRG two-body flow, ladder (Hugenholtz)",
+        r"\frac{d\Gamma_{1234}}{ds} = \frac{1}{2} \sum_{ab} (1 - n_a - n_b) \eta_{12ab} \Gamma_{ab34}",
+    ),
+    (
+        "IMSRG two-body flow, ring (Hugenholtz)",
+        r"\frac{d\Gamma_{1234}}{ds} = \sum_{ab} (n_a - n_b) \eta_{a2b4} \Gamma_{1b3a}",
     ),
 ];
 
@@ -909,7 +927,9 @@ pub fn builtin() -> Vec<Template> {
     let many: Vec<(&'static str, Document)> = MANY_BODY
         .iter()
         .filter_map(|(name, tex)| {
-            let rule = if SRG_TEMPLATES.contains(name) {
+            let rule = if SRG_HUG_TEMPLATES.contains(name) {
+                crate::expr::Rule::SrgHug
+            } else if SRG_TEMPLATES.contains(name) {
                 crate::expr::Rule::Srg
             } else {
                 crate::expr::Rule::Cc

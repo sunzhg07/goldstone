@@ -39,7 +39,7 @@ const EXT: f64 = 34.0; // length of external lines
 const TERM_GAP: f64 = 16.0; // between terms (besides room for labels)
 
 /// How indices are read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Rule {
     /// Coupled cluster: a–g particles, h–n holes, other letters general.
     #[default]
@@ -48,6 +48,10 @@ pub enum Rule {
     /// (`n_a` hole, `\bar n_a` particle) says otherwise; single digits are
     /// orbitals too (`f_{12}`, `\Gamma_{1234}`).
     Srg,
+    /// IMSRG indices, drawn Hugenholtz style: every operator with two or
+    /// more vertices (two-, three-body) is one dot; one-body operators are
+    /// drawn as with [`Rule::Srg`].
+    SrgHug,
 }
 
 impl Rule {
@@ -56,14 +60,26 @@ impl Rule {
         match self {
             Rule::Cc => None,
             Rule::Srg => Some("srg"),
+            Rule::SrgHug => Some("srg-hug"),
         }
     }
 
     pub fn from_stored(s: Option<&str>) -> Rule {
         match s {
             Some("srg") => Rule::Srg,
+            Some("srg-hug") => Rule::SrgHug,
             _ => Rule::Cc,
         }
+    }
+
+    /// Whether indices are read with the IMSRG rule.
+    pub fn srg(self) -> bool {
+        matches!(self, Rule::Srg | Rule::SrgHug)
+    }
+
+    /// Whether many-body operators are drawn as single dots (Hugenholtz).
+    pub fn hugenholtz(self) -> bool {
+        self == Rule::SrgHug
     }
 }
 
@@ -133,6 +149,8 @@ pub struct Equation {
     /// external lines are the indices used once on the right.
     pub external: Vec<String>,
     pub terms: Vec<Term>,
+    /// Draw operators with two or more vertices as one dot (Hugenholtz).
+    pub hugenholtz: bool,
 }
 
 // ---- parsing ------------------------------------------------------------------
@@ -1030,7 +1048,7 @@ fn expand_macros(src: &str) -> String {
 
 /// Parses `lhs = rhs` (or just `rhs`) with the given rule.
 pub fn parse_with(src: &str, rule: Rule) -> Result<Equation, String> {
-    let srg = rule == Rule::Srg;
+    let srg = rule.srg();
     let src = expand_macros(src);
     let src = src.trim().trim_matches('$').trim();
     if let Some(w) = missing_backslash(src) {
@@ -1105,6 +1123,7 @@ pub fn parse_with(src: &str, rule: Rule) -> Result<Equation, String> {
         lhs,
         external,
         terms,
+        hugenholtz: rule.hugenholtz(),
     })
 }
 
@@ -1699,6 +1718,8 @@ fn r2(x: f64) -> f64 {
 
 struct Builder {
     doc: Document,
+    /// Hugenholtz: operators with two or more vertices are one dot.
+    hug: bool,
 }
 
 impl Builder {
@@ -1794,10 +1815,21 @@ fn build_term(
     prefix: &str,
     x0: f64,
 ) -> Result<(f64, f64, Vec<String>), String> {
+    let hug = b.hug;
     let (oriented, lines) = chosen;
     let term = &oriented;
     let level = levels(term.tensors.len(), &lines)?;
     let candidates = place(term, &lines, &level);
+    let (lines, candidates) = if hug {
+        let merged: Vec<_> = candidates
+            .iter()
+            .map(|pos| merge_vertices(term, &lines, pos))
+            .collect();
+        let lines = merged.first().map(|m| m.0.clone()).unwrap_or(lines);
+        (lines, merged.into_iter().map(|m| m.1).collect())
+    } else {
+        (lines, candidates)
+    };
     // Draw the candidates on their own and keep the one that measures best
     // (crossings, lines near vertices, overlapping labels).
     let mut pick = 0;
@@ -1809,6 +1841,7 @@ fn build_term(
                     styles: b.doc.styles.clone(),
                     ..Document::default()
                 },
+                hug,
             };
             draw_term(&mut trial, term, &lines, &level, pos, prefix, x0)?;
             let q = crate::quality::measure(&trial.doc).score();
@@ -1821,6 +1854,76 @@ fn build_term(
     draw_term(b, term, &lines, &level, &candidates[pick], prefix, x0)
 }
 
+/// Hugenholtz: the vertices of every operator with two or more of them
+/// become one (slot 0), in their middle; lines join that vertex.
+fn merge_vertices(
+    term: &Term,
+    lines: &[Line],
+    pos: &HashMap<V, (f64, f64)>,
+) -> (Vec<Line>, HashMap<V, (f64, f64)>) {
+    let many = |t: usize| term.tensors[t].bra.len() >= 2;
+    let one = |v: V| if many(v.t) { V { t: v.t, j: 0 } } else { v };
+    let lines: Vec<Line> = lines
+        .iter()
+        .map(|l| Line {
+            out: l.out.map(one),
+            inn: l.inn.map(one),
+            ..l.clone()
+        })
+        .collect();
+    let mut merged: HashMap<V, (f64, f64)> = HashMap::new();
+    let mut count: HashMap<V, f64> = HashMap::new();
+    for (v, p) in pos {
+        let e = merged.entry(one(*v)).or_insert((0.0, 0.0));
+        e.0 += p.0;
+        e.1 += p.1;
+        *count.entry(one(*v)).or_insert(0.0) += 1.0;
+    }
+    for (v, p) in merged.iter_mut() {
+        p.0 /= count[v];
+        p.1 /= count[v];
+    }
+    // One column: the operators of a level side by side (in their order),
+    // centred, so that chains of operators stand straight.
+    let mut rows: BTreeMap<i64, Vec<V>> = BTreeMap::new();
+    for (v, p) in &merged {
+        rows.entry((p.1 * 100.0).round() as i64)
+            .or_default()
+            .push(*v);
+    }
+    for row in rows.values_mut() {
+        row.sort_by(|a, b| merged[a].0.total_cmp(&merged[b].0).then(a.cmp(b)));
+        let n = row.len() as f64;
+        for (k, v) in row.iter().enumerate() {
+            merged.get_mut(v).expect("vertex").0 = HUG_DX * (k as f64 - (n - 1.0) / 2.0);
+        }
+    }
+    // Stretch vertically so that the widest bundle between two dots
+    // (lines HUG_GAP apart) bends at most into a half circle.
+    let mut bundles: HashMap<(V, V), usize> = HashMap::new();
+    for l in &lines {
+        if let (Some(o), Some(i)) = (l.out, l.inn)
+            && o != i
+        {
+            *bundles
+                .entry(if o <= i { (o, i) } else { (i, o) })
+                .or_default() += 1;
+        }
+    }
+    let stretch = bundles
+        .iter()
+        .map(|((a, b), m)| {
+            let (p, q) = (merged[a], merged[b]);
+            let len = (q.0 - p.0).hypot(q.1 - p.1);
+            HUG_GAP * (*m as f64 - 1.0) / len.max(1.0)
+        })
+        .fold(1.0, f64::max);
+    for p in merged.values_mut() {
+        p.1 *= stretch;
+    }
+    (lines, merged)
+}
+
 /// Draws one term with the given vertex positions.
 fn draw_term(
     b: &mut Builder,
@@ -1831,7 +1934,19 @@ fn draw_term(
     prefix: &str,
     x0: f64,
 ) -> Result<(f64, f64, Vec<String>), String> {
+    let hug = b.hug;
     let mut ids: Vec<String> = Vec::new();
+    // The vertices of operator t (one, for a Hugenholtz dot).
+    let slots = |t: usize| -> Vec<V> {
+        let k = term.tensors[t].bra.len();
+        if hug && k >= 2 {
+            vec![V { t, j: 0 }]
+        } else {
+            (0..k).map(|j| V { t, j }).collect()
+        }
+    };
+    // Hugenholtz dots and their labels, placed once all lines are drawn.
+    let mut dots: Vec<(String, String)> = Vec::new();
     let vid = |v: V| {
         format!(
             "{prefix}{}{}_{}",
@@ -1849,6 +1964,12 @@ fn draw_term(
     // Operators: vertices and the interaction line / amplitude bar.
     for (t, ten) in term.tensors.iter().enumerate() {
         let k = ten.bra.len();
+        if hug && k >= 2 {
+            let v = V { t, j: 0 };
+            ids.push(b.vertex(vid(v), at(v), Some("v"), None));
+            dots.push((vid(v), latex_name(&ten.name)));
+            continue;
+        }
         let inter = is_interaction(&ten.name);
         let mut vs: Vec<V> = (0..k).map(|j| V { t, j }).collect();
         vs.sort_by(|a, b| at(*a).0.total_cmp(&at(*b).0));
@@ -1916,7 +2037,22 @@ fn draw_term(
             bundles.entry(key).or_default().push(n);
         }
     }
-    for ((u, _), members) in &bundles {
+    let hug_bends = if hug {
+        // Room a one-body operator needs beside its vertex: the ---X line
+        // (to the right) or half of its bar.
+        let extent = |v: V| {
+            let ten = &term.tensors[v.t];
+            match (ten.bra.len(), is_interaction(&ten.name)) {
+                (1, true) => 28.0,
+                (1, false) => 10.0,
+                _ => 0.0,
+            }
+        };
+        hugenholtz_bends(&bundles, &|v| at(v), &extent, pos.keys().copied())
+    } else {
+        HashMap::new()
+    };
+    for ((u, w), members) in &bundles {
         let m = members.len();
         let same_op = {
             let l = &lines[members[0]];
@@ -1930,7 +2066,9 @@ fn draw_term(
             // Bends spread symmetrically; a line within one operator
             // bulges away from its interaction line.
             let spread = 40.0f64.min(80.0 / m as f64 + 20.0);
-            let mut bend = if m == 1 {
+            let mut bend = if let Some(bs) = hug_bends.get(&(*u, *w)) {
+                bs[k]
+            } else if m == 1 {
                 if same_op {
                     60.0
                 } else {
@@ -2011,21 +2149,28 @@ fn draw_term(
     // the others downward. They run to the top / bottom of the whole
     // diagram, leaning away from their operator just enough to clear every
     // vertex and operator they pass and the other lines at their vertex.
-    let top = max_level as f64 * DY + EXT;
+    let top = pos
+        .values()
+        .map(|p| p.1)
+        .fold(max_level as f64 * DY, f64::max)
+        + EXT;
     let bottom = -EXT;
     let all: Vec<(f64, f64)> = pos.keys().map(|v| at(*v)).collect();
     let op_spans: Vec<(f64, f64, f64, f64)> = (0..term.tensors.len())
         .map(|t| {
-            let xs: Vec<f64> = (0..term.tensors[t].bra.len())
-                .map(|j| at(V { t, j }).0)
-                .collect();
+            let xs: Vec<f64> = slots(t).into_iter().map(|v| at(v).0).collect();
             let inter = is_interaction(&term.tensors[t].name);
             let (mut lo, mut hi) = (
                 xs.iter().copied().fold(f64::INFINITY, f64::min),
                 xs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
             );
+            let dot = hug && term.tensors[t].bra.len() >= 2;
+            if dot {
+                lo -= 4.0;
+                hi += 4.0;
+            }
             // One-body operators: the ---X line to the right, or a short bar.
-            if xs.len() == 1 {
+            if xs.len() == 1 && !dot {
                 if inter {
                     hi += 28.0;
                 } else {
@@ -2038,7 +2183,7 @@ fn draw_term(
                 lo,
                 hi,
                 // Crossing an interaction line is acceptable, a bar is not.
-                if is_interaction(&term.tensors[t].name) {
+                if is_interaction(&term.tensors[t].name) || dot {
                     30.0
                 } else {
                     80.0
@@ -2065,8 +2210,7 @@ fn draw_term(
         let p = at(v);
         let end_y = if up { top } else { bottom };
         let len = (end_y - p.1).abs();
-        let ten = &term.tensors[v.t];
-        let xs: Vec<f64> = (0..ten.bra.len()).map(|j| at(V { t: v.t, j }).0).collect();
+        let xs: Vec<f64> = slots(v.t).into_iter().map(|w| at(w).0).collect();
         let center = xs.iter().sum::<f64>() / xs.len() as f64;
         let lean = if (p.0 - center).abs() < 1e-9 {
             0.0
@@ -2158,6 +2302,30 @@ fn draw_term(
         ids.push(id);
     }
 
+    // Dot labels: the freest directions first; the first that touches the
+    // fewest lines and labels wins.
+    for (id, label) in dots {
+        let vi = b
+            .doc
+            .vertices
+            .iter()
+            .position(|v| v.id == id)
+            .expect("dot vertex");
+        b.doc.vertices[vi].label = Some(label);
+        let mut best: Option<(usize, Anchor)> = None;
+        for anchor in dot_label_anchors(&b.doc, &id) {
+            b.doc.vertices[vi].label_anchor = Some(anchor);
+            let c = crate::quality::vertex_label_clashes(&b.doc, &id);
+            if best.is_none_or(|(bc, _)| c < bc) {
+                best = Some((c, anchor));
+            }
+            if c == 0 {
+                break;
+            }
+        }
+        b.doc.vertices[vi].label_anchor = best.map(|b| b.1);
+    }
+
     let xs = pos.values().map(|p| p.0 + x0);
     let right = xs.clone().fold(f64::NEG_INFINITY, f64::max);
     let ys: Vec<f64> = pos.values().map(|p| p.1).collect();
@@ -2165,6 +2333,154 @@ fn draw_term(
         + ys.iter().copied().fold(f64::NEG_INFINITY, f64::max))
         / 2.0;
     Ok((right, mid, ids))
+}
+
+/// Lateral distance (pt) between neighbouring lines of a Hugenholtz bundle,
+/// at their middle: room for a label between them.
+const HUG_GAP: f64 = 22.0;
+
+/// Horizontal distance (pt) between Hugenholtz operators on one level.
+const HUG_DX: f64 = 90.0;
+
+/// Hugenholtz: bends (degrees, positive to the left of u → w) of the lines
+/// of every bundle between two different dots. The lines of a bundle are
+/// spread `HUG_GAP` apart at their middle; a bundle whose chord runs past
+/// another vertex goes around it, outside the lines at that vertex.
+fn hugenholtz_bends(
+    bundles: &BTreeMap<(V, V), Vec<usize>>,
+    at: &dyn Fn(V) -> (f64, f64),
+    extent: &dyn Fn(V) -> f64,
+    vertices: impl Iterator<Item = V>,
+) -> HashMap<(V, V), Vec<f64>> {
+    let vertices: Vec<V> = vertices.collect();
+    let chord = |u: V, w: V| {
+        let (a, b) = (at(u), at(w));
+        ((b.0 - a.0).hypot(b.1 - a.1), a, b)
+    };
+    let to_bend = |s: f64, len: f64| (2.0 * (2.0 * s / len.max(1.0)).atan()).to_degrees();
+    // Vertices that lie on the chord u–w (between its ends).
+    let blockers = |u: V, w: V| -> Vec<V> {
+        let (len, a, b) = chord(u, w);
+        vertices
+            .iter()
+            .copied()
+            .filter(|q| *q != u && *q != w)
+            .filter(|q| {
+                let p = at(*q);
+                let t = ((p.0 - a.0) * (b.0 - a.0) + (p.1 - a.1) * (b.1 - a.1)) / (len * len);
+                let cross = ((p.0 - a.0) * (b.1 - a.1) - (p.1 - a.1) * (b.0 - a.0)) / len;
+                t > 0.05 && t < 0.95 && cross.abs() < 8.0
+            })
+            .collect()
+    };
+    // Lateral offsets: unblocked bundles first, centred on their chord.
+    let mut offsets: HashMap<(V, V), Vec<f64>> = HashMap::new();
+    let mut blocked: Vec<((V, V), Vec<V>)> = Vec::new();
+    for (&(u, w), members) in bundles {
+        if u == w {
+            continue;
+        }
+        let bl = blockers(u, w);
+        if !bl.is_empty() {
+            blocked.push(((u, w), bl));
+            continue;
+        }
+        let m = members.len() as f64;
+        offsets.insert(
+            (u, w),
+            (0..members.len())
+                .map(|k| HUG_GAP * ((m - 1.0) / 2.0 - k as f64))
+                .collect(),
+        );
+    }
+    // Blocked bundles: shortest first, outside everything at the vertices
+    // in the way, half of the lines on each side.
+    blocked.sort_by(|a, b| chord(a.0.0, a.0.1).0.total_cmp(&chord(b.0.0, b.0.1).0));
+    for ((u, w), bl) in blocked {
+        let reach = bl
+            .iter()
+            .flat_map(|q| {
+                offsets
+                    .iter()
+                    .filter(move |((a, b), _)| a == q || b == q)
+                    .flat_map(|(_, o)| o.iter().map(|x| x.abs()))
+                    .chain(std::iter::once(extent(*q)))
+            })
+            .fold(0.0, f64::max);
+        let base = reach + HUG_GAP;
+        let m = bundles[&(u, w)].len();
+        let left = m.div_ceil(2);
+        let mut o: Vec<f64> = (0..left).rev().map(|j| base + HUG_GAP * j as f64).collect();
+        o.extend((0..m - left).map(|j| -(base + HUG_GAP * j as f64)));
+        offsets.insert((u, w), o);
+    }
+    offsets
+        .into_iter()
+        .map(|((u, w), o)| {
+            let len = chord(u, w).0;
+            ((u, w), o.into_iter().map(|s| r2(to_bend(s, len))).collect())
+        })
+        .collect()
+}
+
+/// Where the label of a Hugenholtz dot may go, best first: the eight
+/// directions around the dot ordered by the angle to the nearest line
+/// leaving it (right and left first when about as free). Each is given as
+/// the label's anchor, which is opposite to its direction from the dot.
+fn dot_label_anchors(doc: &Document, id: &str) -> Vec<Anchor> {
+    let at = |vid: &str| doc.vertices.iter().find(|v| v.id == vid).map(|v| v.at);
+    let Some(p) = at(id) else {
+        return vec![Anchor::West];
+    };
+    // Directions in which lines leave the dot (arcs: their tangent; a
+    // positive bend bulges to the left of travel).
+    let mut dirs: Vec<f64> = Vec::new();
+    for e in &doc.edges {
+        let bend = e.bend.unwrap_or(0.0).to_radians();
+        if e.from == id && e.to == id {
+            let a = e.loop_.as_ref().and_then(|l| l.angle).unwrap_or(90.0);
+            dirs.push((a - 45.0).to_radians());
+            dirs.push((a + 45.0).to_radians());
+        } else if e.from == id {
+            if let Some(q) = at(&e.to) {
+                dirs.push((q[1] - p[1]).atan2(q[0] - p[0]) + bend);
+            }
+        } else if e.to == id
+            && let Some(q) = at(&e.from)
+        {
+            dirs.push((q[1] - p[1]).atan2(q[0] - p[0]) - bend);
+        }
+    }
+    let gap = |a: f64| {
+        dirs.iter()
+            .map(|d| {
+                let x = (a - d).rem_euclid(std::f64::consts::TAU);
+                x.min(std::f64::consts::TAU - x)
+            })
+            .fold(std::f64::consts::PI, f64::min)
+    };
+    let mut c: Vec<(f64, Anchor)> = [
+        (0.0, Anchor::West),
+        (180.0, Anchor::East),
+        (45.0, Anchor::SouthWest),
+        (135.0, Anchor::SouthEast),
+        (-45.0, Anchor::NorthWest),
+        (-135.0, Anchor::NorthEast),
+        (90.0, Anchor::South),
+        (-90.0, Anchor::North),
+    ]
+    .into_iter()
+    .enumerate()
+    // Rank by free angle in steps of ~11°, then by the order above.
+    .map(|(k, (deg, a))| {
+        (
+            (gap(f64::to_radians(deg)) / 0.2).floor() * 100.0 - k as f64,
+            a,
+        )
+    })
+    .collect();
+    c.sort_by(|a, b| b.0.total_cmp(&a.0));
+    c.into_iter().map(|(_, a)| a).collect()
 }
 
 /// Rough width of typeset LaTeX (pt), for placing the text before a term.
@@ -2236,6 +2552,7 @@ fn lhs_latex(lhs: &str, _external: &[String]) -> String {
 pub fn diagram(eq: &Equation) -> Result<Diagram, String> {
     let mut b = Builder {
         doc: Document::default(),
+        hug: eq.hugenholtz,
     };
     b.doc.canvas.grid = Some(10.0);
     let st = &mut b.doc.styles;
@@ -2482,6 +2799,99 @@ pub fn from_latex_editable_with(src: &str, rule: Rule) -> Result<Diagram, String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hugenholtz_dots() {
+        let src = r"\frac{dE}{ds} = \frac{1}{4} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar n_c \bar n_d";
+        assert!(parse_with(src, Rule::SrgHug).unwrap().hugenholtz);
+        assert!(!parse_with(src, Rule::Srg).unwrap().hugenholtz);
+        let d = from_latex_with(src, Rule::SrgHug).unwrap().doc;
+        // One dot per operator, labelled; no bars or interaction lines.
+        assert_eq!(d.vertices.len(), 2);
+        assert!(d.vertices.iter().all(|v| v.class.as_deref() == Some("v")));
+        let labels: Vec<_> = d.vertices.iter().filter_map(|v| v.label.clone()).collect();
+        assert_eq!(labels, ["$\\eta$", "$\\Gamma$"]);
+        assert!(
+            d.edges
+                .iter()
+                .all(|e| !matches!(e.class.as_deref(), Some("amplitude" | "interaction")))
+        );
+        // Four lines between the dots, each with its own curve.
+        assert_eq!(d.edges.len(), 4);
+        let mut bends: Vec<f64> = d
+            .edges
+            .iter()
+            .map(|e| {
+                let b = e.bend.unwrap_or(0.0);
+                if e.from == d.vertices[0].id { b } else { -b }
+            })
+            .collect();
+        bends.sort_by(f64::total_cmp);
+        bends.dedup();
+        assert_eq!(bends.len(), 4, "{bends:?}");
+    }
+
+    #[test]
+    fn hugenholtz_keeps_one_body_operators() {
+        let d = from_latex_with(
+            r"\frac{dE}{ds} = \sum_{ab} (n_a - n_b) \eta_{ab} f_{ba}",
+            Rule::SrgHug,
+        )
+        .unwrap()
+        .doc;
+        assert!(
+            d.edges
+                .iter()
+                .any(|e| e.class.as_deref() == Some("amplitude"))
+        );
+        assert!(d.vertices.iter().any(|v| v.kind == Some(VertexKind::Cross)));
+    }
+
+    #[test]
+    fn hugenholtz_layouts_are_clean() {
+        for src in [
+            r"\frac{dE}{ds} = \frac{1}{4} \sum_{abcd} \eta_{abcd} \Gamma_{cdab} n_a n_b \bar n_c \bar n_d",
+            r"Z_{12} = \frac{1}{2} \sum_{abc} (n_a n_b \bar n_c + \bar n_a \bar n_b n_c) \eta_{c1ab} \Gamma_{abc2}",
+            r"Z_{1234} = \frac{1}{2} \sum_{ab} (1 - n_a - n_b) \eta_{12ab} \Gamma_{ab34}",
+            r"E_3 = \frac{1}{8} \sum \Gamma_{ijab} \Gamma_{abcd} \Gamma_{cdij} n_i n_j \bar n_a \bar n_b \bar n_c \bar n_d",
+            r"\frac{dE}{ds} = \frac{1}{36} \sum \eta_{abcdef} W_{defabc} n_a n_b n_c \bar n_d \bar n_e \bar n_f",
+            r"Z_{1234} = \sum_{ab} (n_a - n_b) \eta_{a2b4} \Gamma_{1b3a}",
+            r"Z_{12} = \frac{1}{4} \sum_{abcd} n_a n_b \bar n_c \bar n_d \eta_{1ab2cd} \Gamma_{cdab}",
+            r"Z_{12} = \sum_{abcd} \eta_{1abc} \Gamma_{bcd2} f_{da} n_b n_c \bar n_a \bar n_d",
+            r"Z_{1234} = \sum_{abcd} \eta_{12ab} \Gamma_{abcd} \Omega_{cd34} \bar n_a \bar n_b \bar n_c \bar n_d",
+        ] {
+            let d = from_latex_with(src, Rule::SrgHug).unwrap();
+            assert!(d.warnings.is_empty(), "{src}: {:?}", d.warnings);
+            let q = crate::quality::measure(&d.doc);
+            assert_eq!(
+                (
+                    q.crossings,
+                    q.near_vertices,
+                    q.label_on_lines,
+                    q.label_overlaps
+                ),
+                (0, 0, 0, 0),
+                "{src}: {q:?}"
+            );
+            for v in d.doc.vertices.iter().filter(|v| v.label.is_some()) {
+                assert_eq!(
+                    crate::quality::vertex_label_clashes(&d.doc, &v.id),
+                    0,
+                    "{src}: {}",
+                    v.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn hugenholtz_rule_is_stored() {
+        assert_eq!(Rule::SrgHug.stored(), Some("srg-hug"));
+        assert_eq!(Rule::from_stored(Some("srg-hug")), Rule::SrgHug);
+        let d =
+            from_latex_editable_with(r"Z_{12} = \sum_{a} \eta_{1a} f_{a2}", Rule::SrgHug).unwrap();
+        assert_eq!(d.doc.groups[0].latex_rule.as_deref(), Some("srg-hug"));
+    }
 
     #[test]
     fn operator_form() {

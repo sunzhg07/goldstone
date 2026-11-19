@@ -130,6 +130,55 @@ fn label_box(at: Point, anchor: crate::model::Anchor, content: &str, size: f64) 
     Rect::from_center_size((cx, cy), (w, h))
 }
 
+/// How badly the label of vertex `id` sits: lines its box (grown by 1 pt)
+/// touches, and other labels it overlaps (counted double).
+pub fn vertex_label_clashes(doc: &Document, id: &str) -> usize {
+    let Some(vi) = doc.vertices.iter().position(|v| v.id == id) else {
+        return 0;
+    };
+    let Ok(sc) = scene::build(doc) else {
+        return 0;
+    };
+    let mut lines: Vec<(ObjRef, Vec<Point>)> = Vec::new();
+    let mut labels: Vec<(ObjRef, Rect)> = Vec::new();
+    for it in &sc.items {
+        match &it.mark {
+            Mark::Path(p) if p.stroke.is_some() && !lines.iter().any(|l| l.0 == it.obj) => {
+                lines.push((it.obj, polyline(&p.path)));
+            }
+            Mark::Text(t) => labels.push((it.obj, label_box(t.at, t.anchor, &t.content, t.size))),
+            _ => {}
+        }
+    }
+    let me = ObjRef::Vertex(vi);
+    let Some(mine) = labels
+        .iter()
+        .find(|l| l.0 == me)
+        .map(|l| l.1.inflate(1.0, 1.0))
+    else {
+        return 0;
+    };
+    // Lines leaving the vertex touch every box next to it: only their
+    // part beyond 5 pt counts.
+    let c = Point::new(doc.vertices[vi].at[0], doc.vertices[vi].at[1]);
+    let on_lines = lines
+        .iter()
+        .filter(|(o, poly)| {
+            let far: Vec<Point> = poly
+                .iter()
+                .copied()
+                .filter(|p| (*p - c).hypot() > 5.0)
+                .collect();
+            *o != me && far.len() >= 2 && poly_hits_rect(&far, mine)
+        })
+        .count();
+    let on_labels = labels
+        .iter()
+        .filter(|(o, r)| *o != me && mine.intersect(*r).area() > 1.0)
+        .count();
+    on_lines + 2 * on_labels
+}
+
 /// Measures a diagram drawn from LaTeX (classes `particle`, `hole`, `line`
 /// for fermion lines, `interaction` and `amplitude` for operators).
 pub fn measure(doc: &Document) -> Quality {

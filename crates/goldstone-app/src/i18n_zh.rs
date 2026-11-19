@@ -75,6 +75,18 @@ pub const ZH: &[(&str, &str)] = &[
     ("IMSRG Diagram from LaTeX…", "从 LaTeX 生成 IMSRG 图…"),
     ("IMSRG Diagram from LaTeX", "从 LaTeX 生成 IMSRG 图"),
     (
+        "IMSRG Hugenholtz Diagram from LaTeX…",
+        "从 LaTeX 生成 IMSRG Hugenholtz 图…",
+    ),
+    (
+        "IMSRG Hugenholtz Diagram from LaTeX",
+        "从 LaTeX 生成 IMSRG Hugenholtz 图",
+    ),
+    (
+        "Hugenholtz: every two- and three-body operator is one dot with all its lines; one-body operators are drawn as below.",
+        "Hugenholtz：每个二体、三体算符画成一个点，其所有线都连到该点；单体算符画法如下。",
+    ),
+    (
         "IMSRG: an index is a, a_1 or a digit (1). Every line is a general orbital (no arrow) unless an occupation factor says otherwise: n_a hole, \\bar n_a or (1 - n_a) particle; factors such as (n_a - n_b) give one diagram per particle–hole assignment. Permutations (1+P_{12}) are left out.",
         "IMSRG：指标写作 a、a_1 或一位数字（1）。除非占据数因子另有规定，每条线都是一般轨道（无箭头）：n_a 为空穴，\\bar n_a 或 (1 - n_a) 为粒子；(n_a - n_b) 等因子按每种粒子–空穴分配各生成一个图。置换算符 (1+P_{12}) 不画出。",
     ),

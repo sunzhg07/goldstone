@@ -452,6 +452,12 @@ impl GoldstoneApp {
             ui.menu_button(t("Insert"), |ui| {
                 item(ui, None, "CC Diagram from LaTeX…", Action::FromLatex);
                 item(ui, None, "IMSRG Diagram from LaTeX…", Action::FromLatexSrg);
+                item(
+                    ui,
+                    None,
+                    "IMSRG Hugenholtz Diagram from LaTeX…",
+                    Action::FromLatexSrgHug,
+                );
                 item(ui, None, "Function Plot…", Action::FunctionPlot);
                 item(ui, None, "Templates…", Action::Templates);
             });
@@ -2194,8 +2200,13 @@ impl GoldstoneApp {
         }
         let mut open = true;
         let mut action: Option<bool> = None;
-        let srg = self.latex.rule == goldstone_core::expr::Rule::Srg;
-        egui::Window::new(t(if srg { "IMSRG Diagram from LaTeX" } else { "CC Diagram from LaTeX" }))
+        let srg = self.latex.rule.srg();
+        let hug = self.latex.rule.hugenholtz();
+        egui::Window::new(t(match self.latex.rule {
+            goldstone_core::expr::Rule::Cc => "CC Diagram from LaTeX",
+            goldstone_core::expr::Rule::Srg => "IMSRG Diagram from LaTeX",
+            goldstone_core::expr::Rule::SrgHug => "IMSRG Hugenholtz Diagram from LaTeX",
+        }))
             .open(&mut open)
             .default_width(520.0)
             .show(ctx, |ui| {
@@ -2260,6 +2271,9 @@ impl GoldstoneApp {
                         ui.label(t("IMSRG: an index is a, a_1 or a digit (1). Every line is a general orbital (no arrow) unless an occupation factor says otherwise: n_a hole, \\bar n_a or (1 - n_a) particle; factors such as (n_a - n_b) give one diagram per particle–hole assignment. Permutations (1+P_{12}) are left out."));
                     } else {
                         ui.label(t("An index is a or a_1 (nothing else). a–g are particles (arrow up), h–n holes (arrow down), numbered or not; other letters are general. An index used twice is an internal line; one used once is external and must stand on the left."));
+                    }
+                    if hug {
+                        ui.label(t("Hugenholtz: every two- and three-body operator is one dot with all its lines; one-body operators are drawn as below."));
                     }
                     ui.label(t("V W v w g H F f U \\Gamma are interactions (dashed line; one-body: ---X); other names (T, S, R, …) are amplitudes (thick bar)."));
                     ui.label(t("Terms: + and -; prefactors such as \\frac{1}{4} are kept; \\sum, *, \\cdot are ignored."));
